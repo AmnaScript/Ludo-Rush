@@ -26,7 +26,7 @@ import type {
     GameSettings,
 } from './index';
 
-const alwaysFirst = (_max: number) => 0;
+const alwaysFirst = () => 0;
 
 function setup(
     N: number,
