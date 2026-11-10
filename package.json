@@ -1,3 +1,4 @@
+
 {
   "name": "ludo-rush",
   "private": true,
@@ -11,7 +12,8 @@
     "dev": "concurrently -k -n SERVER,CLIENT -c cyan,magenta \"npm run dev -w @ludo-rush/server\" \"npm run dev -w @ludo-rush/client\"",
     "build": "npm run build -w @ludo-rush/shared && npm run build -w @ludo-rush/server && npm run build -w @ludo-rush/client",
     "lint": "eslint .",
-    "typecheck": "npm run typecheck -w @ludo-rush/shared && npm run typecheck -w @ludo-rush/server && npm run typecheck -w @ludo-rush/client"
+    "typecheck": "npm run typecheck -w @ludo-rush/shared && npm run typecheck -w @ludo-rush/server && npm run typecheck -w @ludo-rush/client",
+    "test": "npm run test -w @ludo-rush/shared"
   },
   "devDependencies": {
     "@eslint/js": "^9.25.1",
