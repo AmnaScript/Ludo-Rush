@@ -8,23 +8,41 @@ import {
 
 import Phaser from 'phaser';
 
-import { BoardScene } from './scenes/BoardScene';
+import type {
+  GameState,
+  MoveResult,
+} from '@ludo-rush/shared';
+
+import {
+  BoardScene,
+} from './scenes/BoardScene';
 
 export interface PhaserGameHandle {
   zoomIn: () => void;
   zoomOut: () => void;
   resetView: () => void;
+  playMove: (
+    move: MoveResult
+  ) => Promise<void>;
 }
 
 interface Props {
   playerCount: number;
+  game: GameState | null;
+  validPieceIds: string[];
+  onPieceClick: (pieceId: string) => void;
 }
 
 export const PhaserGame = forwardRef<
   PhaserGameHandle,
   Props
 >(function PhaserGame(
-  { playerCount },
+  {
+    playerCount,
+    game,
+    validPieceIds,
+    onPieceClick,
+  },
   ref
 ) {
   const containerRef =
@@ -36,6 +54,21 @@ export const PhaserGame = forwardRef<
   const sceneRef =
     useRef<BoardScene | null>(null);
 
+  const pickRef = useRef(onPieceClick);
+  pickRef.current = onPieceClick;
+
+  const snapshotRef = useRef({
+    playerCount,
+    game,
+    validPieceIds,
+  });
+
+  snapshotRef.current = {
+    playerCount,
+    game,
+    validPieceIds,
+  };
+
   useImperativeHandle(
     ref,
     () => ({
@@ -43,26 +76,44 @@ export const PhaserGame = forwardRef<
         sceneRef.current?.zoomBy(1.2),
 
       zoomOut: () =>
-        sceneRef.current?.zoomBy(1 / 1.2),
+        sceneRef.current?.zoomBy(
+          1 / 1.2
+        ),
 
       resetView: () =>
         sceneRef.current?.resetView(),
+
+      playMove: async move => {
+        await sceneRef.current?.animateMove(
+          move
+        );
+      },
     }),
     []
   );
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
     const parent = containerRef.current;
+
+    if (!parent) return;
 
     const scene = new BoardScene();
 
-    scene.setPlayerCount(playerCount);
+    const initial = snapshotRef.current;
+
+    scene.setPlayerCount(
+      initial.playerCount
+    );
+
+    scene.setGame(
+      initial.game,
+      initial.validPieceIds,
+      id => pickRef.current(id)
+    );
 
     sceneRef.current = scene;
 
-    const game = new Phaser.Game({
+    const phaserGame = new Phaser.Game({
       type: Phaser.AUTO,
       parent,
       width: Math.max(
@@ -83,26 +134,28 @@ export const PhaserGame = forwardRef<
       scene: [scene],
     });
 
-    gameRef.current = game;
+    gameRef.current = phaserGame;
 
-    const observer = new ResizeObserver(() => {
-      if (gameRef.current !== game) return;
+    const observer = new ResizeObserver(
+      () => {
+        if (
+          gameRef.current !== phaserGame
+        ) {
+          return;
+        }
 
-      const width = Math.max(
-        1,
-        parent.clientWidth
-      );
-
-      const height = Math.max(
-        1,
-        parent.clientHeight
-      );
-
-      game.scale.resize(
-        width,
-        height
-      );
-    });
+        phaserGame.scale.resize(
+          Math.max(
+            1,
+            parent.clientWidth
+          ),
+          Math.max(
+            1,
+            parent.clientHeight
+          )
+        );
+      }
+    );
 
     observer.observe(parent);
 
@@ -112,17 +165,35 @@ export const PhaserGame = forwardRef<
       gameRef.current = null;
       sceneRef.current = null;
 
-      game.destroy(true);
+      phaserGame.destroy(true);
     };
-    // The scene is created once.
-    // Slider updates are handled below.
   }, []);
 
   useEffect(() => {
-    sceneRef.current?.setPlayerCount(
-      playerCount
-    );
-  }, [playerCount]);
+    const scene = sceneRef.current;
+
+    if (!scene) return;
+
+    if (!game) {
+      scene.setGame(
+        null,
+        [],
+        id => pickRef.current(id)
+      );
+
+      scene.setPlayerCount(playerCount);
+    } else {
+      scene.setGame(
+        game,
+        validPieceIds,
+        id => pickRef.current(id)
+      );
+    }
+  }, [
+    playerCount,
+    game,
+    validPieceIds,
+  ]);
 
   return (
     <div
@@ -137,8 +208,7 @@ export const PhaserGame = forwardRef<
         sm:h-[600px]
         lg:h-[700px]
       "
-      aria-label={`Interactive circular Ludo board for ${playerCount} players`}
-      role="img"
+      aria-label={`Playable Ludo board for ${playerCount} players`}
     />
   );
 });

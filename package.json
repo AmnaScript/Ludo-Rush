@@ -8,6 +8,11 @@
     "server",
     "client"
   ],
+
+"overrides": {
+  "@types/three": "0.170.0"
+}
+,
   "scripts": {
     "dev": "concurrently -k -n SERVER,CLIENT -c cyan,magenta \"npm run dev -w @ludo-rush/server\" \"npm run dev -w @ludo-rush/client\"",
     "build": "npm run build -w @ludo-rush/shared && npm run build -w @ludo-rush/server && npm run build -w @ludo-rush/client",
