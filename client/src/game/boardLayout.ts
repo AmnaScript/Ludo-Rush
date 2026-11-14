@@ -27,17 +27,20 @@ export const CLASSIC_COLORS = [
     '#19c96f',
 ];
 
+/** Lightness cycles so neighbouring seats differ even when hues are close. */
+const LIGHTNESS = [52, 64, 42];
+
 export function playerColor(
     seat: number,
     count: number
 ): string {
-    if (count === 4) {
-        return CLASSIC_COLORS[seat];
+    if (count <= CLASSIC_COLORS.length) {
+        return CLASSIC_COLORS[seat]!;
     }
 
-    return `hsl(${Math.round(
-        (seat / count) * 360
-    )}, 90%, 57%)`;
+    // Golden-angle hues keep consecutive seats far apart on the colour wheel.
+    const hue = Math.round((seat * 137.508) % 360);
+    return `hsl(${hue}, 85%, ${LIGHTNESS[seat % LIGHTNESS.length]}%)`;
 }
 
 export function segmentForPlayers(count: number): number {

@@ -1,9 +1,6 @@
 
-export type {
-    PingResponse,
-    ClientToServerEvents,
-    ServerToClientEvents,
-} from './types';
+export * from './net';
+export * from './arena';
 
 export * from './gameTypes';
 export * from './boardGeometry';
