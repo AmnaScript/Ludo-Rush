@@ -1,0 +1,66 @@
+import * as THREE from 'three';
+import { type MutableRefObject } from 'react';
+import { type GameState, type MoveResult } from '@ludo-rush/shared';
+import { type Vec3 } from '../boardLayout';
+
+export interface Board3DHandle {
+    zoomIn: () => void;
+    zoomOut: () => void;
+    resetView: () => void;
+    playMove: (move: MoveResult) => Promise<void>;
+}
+
+export interface Props {
+    game: GameState;
+    validPieceIds: string[];
+    onPieceClick: (id: string) => void;
+    showRoutes: boolean;
+    viewSeat: number;
+    starsPerSegment?: number;
+}
+
+export type Action =
+    | 'idle'
+    | 'walk'
+    | 'run'
+    | 'slap'
+    | 'shoot'
+    | 'panic'
+    | 'fall'
+    | 'celebrate';
+
+export type CaptureStyle = 'SLAP' | 'DOG' | 'GUN';
+
+export interface ActorData {
+    root: THREE.Group;
+    action: Action;
+}
+
+export interface MoveJob {
+    move: MoveResult;
+    resolve: () => void;
+    stage: 'travel' | 'capture' | 'finish';
+    index: number;
+    time: number;
+    from: Vec3;
+    captureIndex: number;
+    captureStarted: boolean;
+    victimFrom: Vec3 | null;
+}
+
+export interface FXState {
+    style: CaptureStyle;
+    label: string;
+    position: Vec3;
+}
+
+export type ActorRegistry = MutableRefObject<
+    Map<string, ActorData>
+>;
+
+
+export type CameraActions = MutableRefObject<{
+    zoomIn: () => void;
+    zoomOut: () => void;
+    resetView: () => void;
+} | null>;
