@@ -11,7 +11,6 @@ import {
   ArrowRight,
   Camera,
   CheckCircle2,
-  Dice5,
   Focus,
   Minus,
   Plus,
@@ -22,8 +21,10 @@ import {
 
 import {
   applyMove,
-  arenaSettings,
-  createGame,
+  createArenaGame,
+  finalRanking,
+  isGameOver,
+  seatsInPlay,
   legalMoves,
   resolveRoll,
   type GameSettings,
@@ -37,6 +38,7 @@ import {
 } from '../game/Board3D';
 
 import { playerColor } from '../game/boardLayout';
+import { ROLL_MS, RollingDice } from '../components/RollingDice';
 
 
 type GamePhase =
@@ -73,15 +75,23 @@ function randomInt(max: number): number {
   return value % max;
 }
 
-function nameOf(seat: number) {
-  return `Player ${seat + 1}`;
-}
 
 export function LocalGame({
   onExit,
 }: {
   onExit: () => void;
 }) {
+  const seatsRef = useRef<number[]>([0, 1, 2, 3]);
+  const forcedDiceRef = useRef<number | null>(null);
+  const [forcedDice, setForcedDice] = useState<number | null>(null);
+  const [rolling, setRolling] = useState(false);
+
+  const nameOf = useCallback(
+    (seat: number) =>
+      `Player ${Math.max(0, seatsRef.current.indexOf(seat)) + 1}`,
+    []
+  );
+
   const [playerCount, setPlayerCount] =
     useState(4);
 
@@ -135,19 +145,19 @@ export function LocalGame({
       null
     );
 
-  const previewGame = useMemo(() => {
-    const settings = arenaSettings(
-      playerCount,
-      piecesPerPlayer
-    );
-
-    return createGame(
-      playerCount,
-      settings
-    );
-  }, [playerCount, piecesPerPlayer]);
+  const previewGame = useMemo(
+    () => createArenaGame(playerCount, piecesPerPlayer).game,
+    [playerCount, piecesPerPlayer]
+  );
 
   const visibleGame = game ?? previewGame;
+
+  const seatLabels = Object.fromEntries(
+    seatsInPlay(visibleGame).map(seat => [
+      seat,
+      nameOf(seat).replace('Player ', 'P'),
+    ])
+  );
   const activeSeat = game?.turnSeat ?? 0;
 
   const viewSeat =
@@ -201,15 +211,14 @@ export function LocalGame({
 
     clearTimer();
 
-    const settings = arenaSettings(
+    const arena = createArenaGame(
       playerCount,
       piecesPerPlayer
     );
 
-    const next = createGame(
-      playerCount,
-      settings
-    );
+    const settings = arena.settings;
+    const next = arena.game;
+    seatsRef.current = arena.seats;
 
     settingsRef.current = settings;
 
@@ -225,6 +234,73 @@ export function LocalGame({
     ]);
 
     boardRef.current?.resetView();
+  };
+
+  /** Test helper: a two-player game where the next roll (forced to 2) captures. */
+  const startCaptureDemo = (style: 'GUN' | 'SLAP' | 'DOG') => {
+    clearTimer();
+    busyRef.current = false;
+
+    const arena = createArenaGame(2, 1);
+    const settings: GameSettings = {
+      ...arena.settings,
+      captureStyles: { GUN: 0, SLAP: 0, DOG: 0, [style]: 1 },
+    };
+    const next: GameState = {
+      ...arena.game,
+      pieces: arena.game.pieces.map(piece => ({
+        ...piece,
+        // seat 0 sits two tiles behind seat 2's piece on a normal tile
+        progress: piece.ownerSeat === 0 ? 10 : 38,
+      })),
+    };
+
+    seatsRef.current = arena.seats;
+    settingsRef.current = settings;
+    forcedDiceRef.current = 2;
+    setForcedDice(2);
+
+    updateGame(next);
+    updateLegal([]);
+    setDice(null);
+    setRanking([]);
+    setPhase('ROLL');
+    setActivity([
+      `Capture test (${style}): roll, then pick the glowing character. Player 1 captures Player 2.`,
+    ]);
+    boardRef.current?.resetView();
+  };
+
+  /** Test helper: four players with most characters already near or in home. */
+  const startHomeDemo = () => {
+    clearTimer();
+    busyRef.current = false;
+
+    const arena = createArenaGame(4, 4);
+    const finished = arena.game.L + arena.game.H;
+    const stages = [finished, finished, arena.game.L + 3, arena.game.L - 4];
+    const next: GameState = {
+      ...arena.game,
+      pieces: arena.game.pieces.map(piece => ({
+        ...piece,
+        progress: stages[Number(piece.id.split('-p')[1] ?? 0) % 4]!,
+      })),
+    };
+
+    seatsRef.current = arena.seats;
+    settingsRef.current = arena.settings;
+    updateGame(next);
+    updateLegal([]);
+    setDice(null);
+    setRanking([]);
+    setPhase('ROLL');
+    setActivity(['Home stretch test: look at how the finish area and home lanes are used.']);
+    boardRef.current?.resetView();
+  };
+
+  const forceDice = (value: number | null) => {
+    forcedDiceRef.current = value;
+    setForcedDice(value);
   };
 
   const restart = () => {
@@ -259,9 +335,26 @@ export function LocalGame({
     if (!current || !settings) return;
 
     busyRef.current = true;
+    setRolling(true);
+    updateLegal([]);
 
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      if (!mountedRef.current) return;
+      setRolling(false);
+      revealRoll(current, settings);
+    }, ROLL_MS);
+  };
+
+  const revealRoll = (
+    current: GameState,
+    settings: GameSettings
+  ) => {
     try {
-      const value = randomInt(6) + 1;
+      const value =
+        forcedDiceRef.current ?? randomInt(6) + 1;
+      forcedDiceRef.current = null;
+      setForcedDice(null);
 
       const result = resolveRoll(
         current,
@@ -365,27 +458,14 @@ export function LocalGame({
       updateLegal([]);
       setDice(null);
 
-      if (
-        next.ranking.length >=
-        next.N - 1
-      ) {
-        const remaining = Array.from(
-          { length: next.N },
-          (_, seat) => seat
-        ).filter(
-          seat => !next.ranking.includes(seat)
-        );
+      if (isGameOver(next)) {
+        const finalRanks = finalRanking(next);
 
-        const finalRanking = [
-          ...next.ranking,
-          ...remaining,
-        ];
-
-        setRanking(finalRanking);
+        setRanking(finalRanks);
         setPhase('FINISHED');
 
         log(
-          `🏆 ${nameOf(finalRanking[0])} wins!`
+          `🏆 ${nameOf(finalRanks[0])} wins!`
         );
       } else {
         if (result.extraTurn) {
@@ -558,6 +638,7 @@ export function LocalGame({
               <Board3D
                 ref={boardRef}
                 game={visibleGame}
+                seatLabels={seatLabels}
                 validPieceIds={legalIds}
                 onPieceClick={choosePiece}
                 showRoutes={showRoutes}
@@ -572,7 +653,7 @@ export function LocalGame({
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[#607987]">
               <p>
                 {visibleGame.L} track tiles ·{' '}
-                {visibleGame.N} players · Clockwise
+                {seatsInPlay(visibleGame).length} players · Clockwise
               </p>
 
               <label className="flex cursor-pointer items-center gap-2 font-semibold">
@@ -594,9 +675,8 @@ export function LocalGame({
 
             {game && (
               <div className="mt-4 flex gap-2 overflow-x-auto pb-3">
-                {Array.from(
-                  { length: game.N },
-                  (_, seat) => (
+                {seatsInPlay(game).map(
+                  (seat) => (
                     <div
                       key={seat}
                       className={`min-w-[120px] shrink-0 rounded-2xl border-2 p-3 ${seat === activeSeat &&
@@ -616,7 +696,7 @@ export function LocalGame({
                           }}
                         />
 
-                        P{seat + 1}
+                        {nameOf(seat).replace("Player ", "P")}
                       </div>
 
                       <p className="mt-2 text-xs text-slate-500">
@@ -666,14 +746,13 @@ export function LocalGame({
                 }}
                 className="mt-2 w-full rounded-xl border border-[#d7e4e3] bg-[#f5faf8] p-3 text-sm"
               >
-                {Array.from(
-                  { length: visibleGame.N },
-                  (_, seat) => (
+                {seatsInPlay(visibleGame).map(
+                  (seat) => (
                     <option
                       key={seat}
                       value={seat}
                     >
-                      Player {seat + 1}'s home
+                      {nameOf(seat)}'s home
                     </option>
                   )
                 )}
@@ -786,7 +865,7 @@ export function LocalGame({
 
                 <div className="mt-4 rounded-xl bg-[#eff8f1] p-3 text-sm text-[#476c5f]">
                   {visibleGame.L} shared track tiles
-                  across {visibleGame.N} players.
+                  across {seatsInPlay(visibleGame).length} players.
                 </div>
 
                 <button
@@ -813,12 +892,11 @@ export function LocalGame({
                   {instruction}
                 </p>
 
-                <div className="my-5 flex justify-center">
-                  <div className="flex h-28 w-28 items-center justify-center rounded-3xl border-4 border-amber-400 bg-[#26475a] text-6xl font-black text-white shadow-lg">
-                    {dice ?? (
-                      <Dice5 size={50} />
-                    )}
-                  </div>
+                <div className="my-8 flex justify-center">
+                  <RollingDice
+                    value={dice}
+                    rolling={rolling}
+                  />
                 </div>
 
                 {phase !== 'FINISHED' && (
@@ -926,6 +1004,63 @@ export function LocalGame({
               </div>
             </section>
 
+
+            <section className="rounded-3xl border-2 border-dashed border-violet-300 bg-violet-50 p-5">
+              <h2 className="font-black text-violet-900">
+                Test tools
+              </h2>
+              <p className="mt-1 text-xs text-violet-800">
+                Skip the long game and see a capture scene right away.
+              </p>
+
+              <p className="mt-3 text-sm font-semibold">
+                Capture scene in one roll
+              </p>
+              <div className="mt-1 grid grid-cols-3 gap-2">
+                {(
+                  [
+                    ['GUN', '🔫 Gun'],
+                    ['SLAP', '👋 Slap'],
+                    ['DOG', '🐕 Dog'],
+                  ] as const
+                ).map(([style, label]) => (
+                  <button
+                    key={style}
+                    onClick={() => startCaptureDemo(style)}
+                    className="rounded-xl bg-white p-2 text-sm font-bold shadow-sm hover:bg-violet-100"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={startHomeDemo}
+                className="mt-3 w-full rounded-xl bg-white p-2 text-sm font-bold shadow-sm hover:bg-violet-100"
+              >
+                🏁 Home stretch (4 players near home)
+              </button>
+
+              <p className="mt-3 text-sm font-semibold">
+                Force the next dice
+              </p>
+              <div className="mt-1 grid grid-cols-6 gap-1.5">
+                {[1, 2, 3, 4, 5, 6].map(n => (
+                  <button
+                    key={n}
+                    onClick={() =>
+                      forceDice(forcedDice === n ? null : n)
+                    }
+                    className={`rounded-lg p-2 text-sm font-black ${forcedDice === n
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-white shadow-sm'
+                      }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </section>
           </aside>
         </div>
     </div>

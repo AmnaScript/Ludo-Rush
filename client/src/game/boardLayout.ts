@@ -14,6 +14,8 @@ export interface BoardLayout {
     lanes: Vec3[][];
     bases: Vec3[];
     slots: Vec3[][];
+    /** Four resting spots per seat for characters that reached home. */
+    finish: Vec3[][];
     safe: Set<number>;
     tileSize: number;
     radius: number;
@@ -103,6 +105,31 @@ function slotsAt(
     ];
 }
 
+/** 2x2 cluster of finish spots at `distance` from the centre along `angle`. */
+function finishCluster(
+    angle: number,
+    distance: number,
+    spacing: number
+): Vec3[] {
+    const dx = Math.cos(angle);
+    const dz = Math.sin(angle);
+    const tx = -dz;
+    const tz = dx;
+    const out: Vec3[] = [];
+
+    for (const along of [-1, 1]) {
+        for (const across of [-1, 1]) {
+            out.push([
+                dx * (distance + along * spacing) + tx * across * spacing,
+                0,
+                dz * (distance + along * spacing) + tz * across * spacing,
+            ]);
+        }
+    }
+
+    return out;
+}
+
 function createClassic(game: GameState): BoardLayout {
     const bases: Vec3[] = [
         grid(11.5, 2.5),
@@ -134,6 +161,13 @@ function createClassic(game: GameState): BoardLayout {
         lanes,
         bases,
         slots: bases.map(base => slotsAt(base, 0.87)),
+        finish: lanes.map(lane =>
+            finishCluster(
+                Math.atan2(lane[0][2], lane[0][0]),
+                0.82,
+                0.2
+            )
+        ),
         safe: new Set(
             getSafeTiles(game.N, game.S)
         ),
@@ -182,6 +216,7 @@ function createArena(
 
     const bases: Vec3[] = [];
     const lanes: Vec3[][] = [];
+    const finish: Vec3[][] = [];
 
     for (let seat = 0; seat < game.N; seat++) {
         const startAngle =
@@ -212,6 +247,14 @@ function createArena(
             (radius - 1.5) / game.H
         );
 
+        finish.push(
+            finishCluster(
+                entryAngle,
+                Math.max(radius - (game.H + 1.1) * step, 0.75),
+                Math.min(0.2, pitch * 0.3)
+            )
+        );
+
         lanes.push(
             Array.from({ length: game.H }, (_, i) => {
                 const distance =
@@ -234,6 +277,7 @@ function createArena(
         slots: bases.map(base =>
             slotsAt(base, Math.min(0.38, pitch * 0.48))
         ),
+        finish,
         safe: new Set(
             getSafeTiles(
                 game.N,
@@ -278,16 +322,18 @@ export function cellPosition(
         return layout.bases[cell.seat];
     }
 
-    const angle =
-        -Math.PI / 2 +
-        (cell.seat * 2 * Math.PI) /
-        layout.bases.length;
+    const spots = layout.finish[cell.seat];
 
     return [
-        Math.cos(angle) * 0.42,
+        spots.reduce((sum, v) => sum + v[0], 0) / spots.length,
         0,
-        Math.sin(angle) * 0.42,
+        spots.reduce((sum, v) => sum + v[2], 0) / spots.length,
     ];
+}
+
+function finishSlot(piece: Piece, layout: BoardLayout): Vec3 {
+    const index = Number(piece.id.split('-p')[1] ?? 0);
+    return layout.finish[piece.ownerSeat][index % 4];
 }
 
 export function piecePosition(
@@ -306,13 +352,7 @@ export function piecePosition(
     }
 
     if (piece.progress >= game.L + game.H) {
-        return cellPosition(
-            {
-                kind: 'finish',
-                seat: piece.ownerSeat,
-            },
-            layout
-        );
+        return finishSlot(piece, layout);
     }
 
     if (piece.progress >= game.L) {
@@ -363,15 +403,7 @@ export function routeForPiece(
                 ][progress - game.L]
             );
         } else {
-            result.push(
-                cellPosition(
-                    {
-                        kind: 'finish',
-                        seat: piece.ownerSeat,
-                    },
-                    layout
-                )
-            );
+            result.push(finishSlot(piece, layout));
         }
     }
 
