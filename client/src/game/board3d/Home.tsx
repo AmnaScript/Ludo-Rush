@@ -9,12 +9,14 @@ export function Home({
     seat,
     active,
     compact,
+    label,
 }: {
     base: Vec3;
     color: string;
     seat: number;
     active: boolean;
     compact: boolean;
+    label?: string;
 }) {
     const size = compact ? 0.58 : 0.95;
 
@@ -84,7 +86,7 @@ export function Home({
                 outlineColor="#243040"
                 outlineWidth={0.028}
             >
-                P{seat + 1}
+                {label ?? `P${seat + 1}`}
             </Text>
             </Billboard>
 

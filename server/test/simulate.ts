@@ -96,8 +96,8 @@ async function main() {
     host.emit('game:start');
 
     // Reconnect test: client 3 drops mid-game, then rejoins with its token.
-    setTimeout(async () => {
-        clients[3]!.disconnect();
+    if (clients.length > 3) setTimeout(async () => {
+        clients[3]?.disconnect();
         await new Promise(r => setTimeout(r, 400));
         const back = await connect();
         const ack = await ackOf(back, 'room:join', { code, nickname: 'ignored', rejoinToken: info[3]!.token } as never);

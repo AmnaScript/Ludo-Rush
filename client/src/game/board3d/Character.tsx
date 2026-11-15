@@ -1,10 +1,24 @@
 import * as THREE from 'three';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { type GameState, type Piece } from '@ludo-rush/shared';
 import { playerColor, type Vec3 } from '../boardLayout';
 import { type ActorRegistry } from './types';
 import { place } from './helpers';
+
+const SKINS = ['#f6c7a1', '#e7a77c', '#c98b5e', '#9c6440', '#6f4529'];
+const HAIRS = ['#2b2230', '#4a2f22', '#7a4b25', '#d7a84a', '#b23a2e', '#3a3f55'];
+
+/** Stable per-character look: skin, hair colour and hair style (short, cap, ponytail, bun). */
+function characterLook(seat: number, index: number) {
+    const skin = SKINS[(seat * 2 + index * 3) % SKINS.length]!;
+    return {
+        skin,
+        skinDark: '#' + new THREE.Color(skin).multiplyScalar(0.82).getHexString(),
+        hair: HAIRS[(seat + index * 2) % HAIRS.length]!,
+        style: (seat + index) % 4,
+    };
+}
 
 export function Character({
     piece,
@@ -39,7 +53,17 @@ export function Character({
         game.N
     );
 
-    const scale = compact ? 0.62 : 0.84;
+    const done = piece.progress >= game.L + game.H;
+    const scale = (compact ? 0.62 : 0.84) * (done ? 0.62 : 1);
+
+    const look = useMemo(
+        () => characterLook(piece.ownerSeat, Number(piece.id.split('-p')[1] ?? 0)),
+        [piece.id, piece.ownerSeat]
+    );
+    const trim = useMemo(
+        () => '#' + new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.6).getHexString(),
+        [color]
+    );
 
     useEffect(() => {
         const object = root.current;
@@ -185,142 +209,160 @@ export function Character({
 
             <group scale={scale}>
                 <group ref={body}>
-                    <mesh
-                        castShadow
-                        position={[0, 0.61, 0]}
-                    >
-                        <capsuleGeometry
-                            args={[0.19, 0.32, 6, 12]}
-                        />
-                        <meshStandardMaterial color={color} />
+                    {/* torso: shirt, collar and belt */}
+                    <mesh castShadow position={[0, 0.61, 0]}>
+                        <capsuleGeometry args={[0.2, 0.28, 8, 16]} />
+                        <meshStandardMaterial color={color} roughness={0.55} />
+                    </mesh>
+                    <mesh position={[0, 0.84, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                        <torusGeometry args={[0.125, 0.032, 8, 18]} />
+                        <meshStandardMaterial color={trim} roughness={0.5} />
+                    </mesh>
+                    <mesh position={[0, 0.43, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                        <torusGeometry args={[0.2, 0.026, 8, 20]} />
+                        <meshStandardMaterial color="#2a2f3d" roughness={0.6} />
+                    </mesh>
+                    <mesh position={[0, 0.62, 0.195]}>
+                        <circleGeometry args={[0.065, 14]} />
+                        <meshBasicMaterial color={trim} />
                     </mesh>
 
-                    <mesh
-                        castShadow
-                        position={[0, 1.05, 0]}
-                    >
-                        <sphereGeometry args={[0.22, 16, 12]} />
-                        <meshStandardMaterial color="#f5b88d" />
+                    {/* head */}
+                    <mesh castShadow position={[0, 1.08, 0]} scale={[1, 1.02, 0.97]}>
+                        <sphereGeometry args={[0.27, 24, 18]} />
+                        <meshStandardMaterial color={look.skin} roughness={0.7} />
                     </mesh>
-
-                    <mesh
-                        castShadow
-                        position={[0, 1.20, -0.035]}
-                    >
-                        <sphereGeometry args={[0.21, 14, 10]} />
-                        <meshStandardMaterial color="#302635" />
-                    </mesh>
-
-                    {[-0.088, 0.088].map(x => (
-                        <mesh
-                            key={`eye-${x}`}
-                            position={[x, 1.07, 0.205]}
-                        >
-                            <sphereGeometry args={[0.024, 8, 8]} />
-                            <meshBasicMaterial color="#172538" />
+                    {[-1, 1].map(side => (
+                        <mesh key={`ear-${side}`} position={[side * 0.265, 1.07, 0]}>
+                            <sphereGeometry args={[0.05, 10, 8]} />
+                            <meshStandardMaterial color={look.skin} roughness={0.7} />
                         </mesh>
                     ))}
 
-                    <group
-                        ref={armL}
-                        position={[-0.26, 0.79, 0]}
-                    >
-                        <mesh
-                            castShadow
-                            position={[0, -0.17, 0]}
-                        >
-                            <capsuleGeometry
-                                args={[0.077, 0.24, 5, 8]}
-                            />
-                            <meshStandardMaterial color={color} />
-                        </mesh>
-
-                        <mesh
-                            castShadow
-                            position={[0, -0.37, 0]}
-                        >
-                            <sphereGeometry args={[0.09, 10, 8]} />
-                            <meshStandardMaterial color="#f5b88d" />
-                        </mesh>
-                    </group>
-
-                    <group
-                        ref={armR}
-                        position={[0.26, 0.79, 0]}
-                    >
-                        <mesh
-                            castShadow
-                            position={[0, -0.17, 0]}
-                        >
-                            <capsuleGeometry
-                                args={[0.077, 0.24, 5, 8]}
-                            />
-                            <meshStandardMaterial color={color} />
-                        </mesh>
-
-                        <mesh
-                            castShadow
-                            position={[0, -0.37, 0]}
-                        >
-                            <sphereGeometry args={[0.09, 10, 8]} />
-                            <meshStandardMaterial color="#f5b88d" />
-                        </mesh>
-
-                        <group
-                            ref={gun}
-                            visible={false}
-                            position={[0, -0.37, 0.20]}
-                        >
-                            <mesh castShadow>
-                                <boxGeometry args={[0.13, 0.14, 0.47]} />
-                                <meshStandardMaterial
-                                    color="#33414e"
-                                    metalness={0.35}
-                                />
+                    {/* face */}
+                    {[-1, 1].map(side => (
+                        <group key={`eye-${side}`} position={[side * 0.098, 1.105, 0.222]}>
+                            <mesh scale={[1, 1.15, 0.5]}>
+                                <sphereGeometry args={[0.056, 14, 12]} />
+                                <meshBasicMaterial color="#ffffff" />
                             </mesh>
-
-                            <mesh position={[0, -0.13, -0.12]}>
-                                <boxGeometry args={[0.10, 0.22, 0.12]} />
-                                <meshStandardMaterial color="#1f2634" />
+                            <mesh position={[0, -0.004, 0.022]}>
+                                <sphereGeometry args={[0.034, 12, 10]} />
+                                <meshBasicMaterial color="#1b2430" />
                             </mesh>
-
-                            <mesh
-                                ref={flash}
-                                visible={false}
-                                position={[0, 0, 0.34]}
-                                rotation={[Math.PI / 2, 0, 0]}
-                            >
-                                <coneGeometry args={[0.15, 0.34, 7]} />
-                                <meshBasicMaterial
-                                    color="#fff22e"
-                                    toneMapped={false}
-                                />
+                            <mesh position={[0.011, 0.014, 0.05]}>
+                                <sphereGeometry args={[0.011, 8, 6]} />
+                                <meshBasicMaterial color="#ffffff" />
+                            </mesh>
+                            <mesh position={[0, 0.08, 0.012]} rotation={[0, 0, side * -0.18]}>
+                                <boxGeometry args={[0.075, 0.016, 0.014]} />
+                                <meshBasicMaterial color={look.hair} />
                             </mesh>
                         </group>
-                    </group>
+                    ))}
+                    <mesh position={[0, 1.045, 0.262]}>
+                        <sphereGeometry args={[0.026, 8, 8]} />
+                        <meshStandardMaterial color={look.skinDark} roughness={0.7} />
+                    </mesh>
+                    <mesh position={[0, 0.985, 0.252]} rotation={[0, 0, Math.PI]}>
+                        <torusGeometry args={[0.062, 0.011, 6, 14, Math.PI]} />
+                        <meshBasicMaterial color="#7a2f3a" />
+                    </mesh>
+                    {[-1, 1].map(side => (
+                        <mesh key={`cheek-${side}`} position={[side * 0.16, 1.0, 0.2]} scale={[1, 0.7, 0.4]}>
+                            <sphereGeometry args={[0.04, 8, 8]} />
+                            <meshBasicMaterial color="#ff8f9b" transparent opacity={0.55} />
+                        </mesh>
+                    ))}
 
-                    {[-0.11, 0.11].map((x, index) => (
+                    {/* hair or cap */}
+                    <mesh castShadow position={[0, 1.1, -0.025]} rotation={[-0.42, 0, 0]}>
+                        <sphereGeometry args={[0.292, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.56]} />
+                        <meshStandardMaterial color={look.style === 1 ? color : look.hair} roughness={0.65} />
+                    </mesh>
+                    {look.style === 1 && (
+                        <mesh position={[0, 1.24, 0.27]} rotation={[0.2, 0, 0]}>
+                            <boxGeometry args={[0.3, 0.025, 0.2]} />
+                            <meshStandardMaterial color={trim} roughness={0.55} />
+                        </mesh>
+                    )}
+                    {look.style === 2 && (
+                        <group position={[0, 1.08, -0.3]}>
+                            <mesh castShadow>
+                                <sphereGeometry args={[0.095, 12, 10]} />
+                                <meshStandardMaterial color={look.hair} roughness={0.65} />
+                            </mesh>
+                            <mesh castShadow position={[0, -0.13, -0.03]}>
+                                <capsuleGeometry args={[0.05, 0.14, 5, 8]} />
+                                <meshStandardMaterial color={look.hair} roughness={0.65} />
+                            </mesh>
+                        </group>
+                    )}
+                    {look.style === 3 && (
+                        <mesh castShadow position={[0, 1.4, -0.04]}>
+                            <sphereGeometry args={[0.115, 14, 12]} />
+                            <meshStandardMaterial color={look.hair} roughness={0.65} />
+                        </mesh>
+                    )}
+
+                    {/* arms */}
+                    {([armL, armR] as const).map((armRef, index) => (
                         <group
                             key={index}
-                            ref={index === 0 ? legL : legR}
-                            position={[x, 0.34, 0]}
+                            ref={armRef}
+                            position={[index === 0 ? -0.27 : 0.27, 0.8, 0]}
                         >
-                            <mesh
-                                castShadow
-                                position={[0, -0.16, 0]}
-                            >
-                                <capsuleGeometry
-                                    args={[0.086, 0.24, 5, 9]}
-                                />
-                                <meshStandardMaterial color="#29415b" />
+                            <mesh castShadow position={[0, -0.1, 0]}>
+                                <capsuleGeometry args={[0.088, 0.1, 6, 10]} />
+                                <meshStandardMaterial color={color} roughness={0.55} />
+                            </mesh>
+                            <mesh castShadow position={[0, -0.27, 0]}>
+                                <capsuleGeometry args={[0.064, 0.12, 5, 8]} />
+                                <meshStandardMaterial color={look.skin} roughness={0.7} />
+                            </mesh>
+                            <mesh castShadow position={[0, -0.39, 0]}>
+                                <sphereGeometry args={[0.078, 12, 10]} />
+                                <meshStandardMaterial color={look.skin} roughness={0.7} />
                             </mesh>
 
-                            <mesh
-                                castShadow
-                                position={[0, -0.32, 0.09]}
-                            >
-                                <boxGeometry args={[0.17, 0.09, 0.25]} />
-                                <meshStandardMaterial color="#ffffff" />
+                            {index === 1 && (
+                                <group ref={gun} visible={false} position={[0, -0.39, 0.2]}>
+                                    <mesh castShadow>
+                                        <boxGeometry args={[0.13, 0.14, 0.47]} />
+                                        <meshStandardMaterial color="#33414e" metalness={0.35} />
+                                    </mesh>
+                                    <mesh position={[0, -0.13, -0.12]}>
+                                        <boxGeometry args={[0.1, 0.22, 0.12]} />
+                                        <meshStandardMaterial color="#1f2634" />
+                                    </mesh>
+                                    <mesh
+                                        ref={flash}
+                                        visible={false}
+                                        position={[0, 0, 0.34]}
+                                        rotation={[Math.PI / 2, 0, 0]}
+                                    >
+                                        <coneGeometry args={[0.15, 0.34, 7]} />
+                                        <meshBasicMaterial color="#fff22e" toneMapped={false} />
+                                    </mesh>
+                                </group>
+                            )}
+                        </group>
+                    ))}
+
+                    {/* legs and shoes */}
+                    {[-0.11, 0.11].map((x, index) => (
+                        <group key={index} ref={index === 0 ? legL : legR} position={[x, 0.36, 0]}>
+                            <mesh castShadow position={[0, -0.15, 0]}>
+                                <capsuleGeometry args={[0.092, 0.2, 6, 10]} />
+                                <meshStandardMaterial color="#2b3a55" roughness={0.65} />
+                            </mesh>
+                            <mesh castShadow position={[0, -0.33, 0.06]}>
+                                <capsuleGeometry args={[0.085, 0.12, 5, 10]} />
+                                <meshStandardMaterial color="#fbfbfb" roughness={0.5} />
+                            </mesh>
+                            <mesh position={[0, -0.395, 0.06]}>
+                                <boxGeometry args={[0.18, 0.03, 0.3]} />
+                                <meshStandardMaterial color={trim} roughness={0.6} />
                             </mesh>
                         </group>
                     ))}

@@ -17,6 +17,8 @@ export interface Props {
     showRoutes: boolean;
     viewSeat: number;
     starsPerSegment?: number;
+    /** Optional text above each home (nicknames online, P1/P2 locally). */
+    seatLabels?: Record<number, string>;
 }
 
 export type Action =

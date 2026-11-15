@@ -4,8 +4,9 @@ import {
     DEFAULT_ROOM_OPTIONS,
     ROOM_LIMITS,
     applyMove,
-    arenaSettings,
-    createGame,
+    createArenaGame,
+    finalRanking,
+    isGameOver,
     resolveRoll,
     type ChatMessage,
     type ClientToServerEvents,
@@ -343,12 +344,13 @@ export class Room {
             const j = randomInt(i + 1);
             [order[i], order[j]] = [order[j]!, order[i]!];
         }
-        order.forEach((m, seat) => {
-            m.seat = seat;
+        const arena = createArenaGame(order.length, this.options.piecesPerPlayer);
+        order.forEach((m, i) => {
+            m.seat = arena.seats[i]!;
         });
 
-        this.settings = arenaSettings(order.length, this.options.piecesPerPlayer);
-        this.game = createGame(order.length, this.settings);
+        this.settings = arena.settings;
+        this.game = arena.game;
         this.phase = 'PLAYING';
         this.say(`Game started with ${order.length} players. ${order[0]!.nickname} rolls first.`);
         this.broadcastState();
@@ -560,7 +562,7 @@ export class Room {
     private advance(): void {
         if (!this.game) return;
 
-        if (this.game.ranking.length >= this.game.N - 1) {
+        if (isGameOver(this.game)) {
             this.finish();
             return;
         }
@@ -572,10 +574,7 @@ export class Room {
         if (!this.game) return;
         this.clearTimers();
 
-        const ranking = [...this.game.ranking];
-        for (let seat = 0; seat < this.game.N; seat++) {
-            if (!ranking.includes(seat)) ranking.push(seat);
-        }
+        const ranking = finalRanking(this.game);
         this.game = { ...this.game, ranking };
         this.phase = 'FINISHED';
         this.deadline = null;
