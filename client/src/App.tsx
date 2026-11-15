@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Dice5, Wifi, WifiOff } from 'lucide-react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
+import { Dice5, Volume2, VolumeX, Wifi, WifiOff } from 'lucide-react';
+import { isMuted, play, setMuted, subscribeMute } from './audio/sfx';
 import { startSession } from './net/session';
 import { useConnectionStore } from './store/connectionStore';
 import { useRoomStore } from './store/roomStore';
@@ -14,6 +15,7 @@ export default function App() {
   const snapshot = useRoomStore((s) => s.snapshot);
   const session = useRoomStore((s) => s.session);
   const [local, setLocal] = useState(false);
+  const muted = useSyncExternalStore(subscribeMute, isMuted);
 
   useEffect(() => {
     startSession();
@@ -38,6 +40,15 @@ export default function App() {
             </div>
           </div>
 
+          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            title={muted ? 'Unmute' : 'Mute'}
+            onClick={() => { setMuted(!muted); if (muted) play('click'); }}
+            className="rounded-full bg-white p-2 text-[#223748] shadow"
+          >
+            {muted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+          </button>
           <span
             title={status}
             className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-bold ${connected ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
@@ -46,6 +57,7 @@ export default function App() {
             {connected ? <Wifi size={15} /> : <WifiOff size={15} />}
             {connected ? 'Online' : status}
           </span>
+          </div>
         </header>
 
         {inRoom ? (

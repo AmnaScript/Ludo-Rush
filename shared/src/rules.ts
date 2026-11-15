@@ -645,3 +645,25 @@ export function applyMove(
         nextSeat,
     };
 }
+
+
+/** Seats that actually have pieces (empty corners on small boards have none). */
+export function seatsInPlay(game: GameState): number[] {
+    return [...new Set(game.pieces.map(p => p.ownerSeat))].sort(
+        (a, b) => a - b
+    );
+}
+
+/** The game ends when at most one seat in play has not finished. */
+export function isGameOver(game: GameState): boolean {
+    return game.ranking.length >= seatsInPlay(game).length - 1;
+}
+
+/** Finishing order, with the remaining seats appended. */
+export function finalRanking(game: GameState): number[] {
+    const ranking = [...game.ranking];
+    for (const seat of seatsInPlay(game)) {
+        if (!ranking.includes(seat)) ranking.push(seat);
+    }
+    return ranking;
+}

@@ -4,7 +4,8 @@ import type { GameState, TurnInfo } from '@ludo-rush/shared';
 import { Board3D, type Board3DHandle } from '../game/Board3D';
 import { playerColor } from '../game/boardLayout';
 import { ChatPanel } from '../components/ChatPanel';
-import { DiceFace } from '../components/DiceFace';
+import { play } from '../audio/sfx';
+import { ROLL_MS, RollingDice } from '../components/RollingDice';
 import { leaveRoom } from '../net/session';
 import { socket } from '../net/socket';
 import { useRoomStore } from '../store/roomStore';
@@ -24,6 +25,7 @@ export function OnlineGame() {
 
   const boardRef = useRef<Board3DHandle>(null);
   const mySeatRef = useRef(mySeat);
+  const rollClickedAt = useRef(0);
   mySeatRef.current = mySeat;
 
   const [game, setGame] = useState<GameState>(snapshot.game!);
@@ -46,11 +48,17 @@ export function OnlineGame() {
     };
 
     const onRolled: Parameters<typeof socket.on<'game:rolled'>>[1] = (p) =>
-      enqueue(() => {
-        setGame(p.game);
-        setDice(p.value);
-        setRolling(false);
+      enqueue(async () => {
+        // The dice tumbles first (also for other players' rolls), then lands.
+        setRolling(true);
         setTurn(null);
+        setValidIds([]);
+        const spent = Date.now() - rollClickedAt.current;
+        await sleep(Math.max(450, ROLL_MS - spent));
+        setRolling(false);
+        setDice(p.value);
+        await sleep(650);
+        setGame(p.game);
         setValidIds(p.seat === mySeatRef.current ? p.validPieceIds : []);
       });
 
@@ -58,6 +66,7 @@ export function OnlineGame() {
       enqueue(() => {
         setTurn(t);
         setRolling(false);
+        if (t.dice === null && t.seat === mySeatRef.current) play('turn');
         if (t.dice === null) setValidIds([]);
         else if (t.seat === mySeatRef.current) setValidIds(t.validPieceIds);
       });
@@ -108,9 +117,16 @@ export function OnlineGame() {
     () => [...snapshot.players].filter((p) => p.seat !== null).sort((a, b) => a.seat! - b.seat!),
     [snapshot.players],
   );
+  const seatLabels = useMemo(
+    () => Object.fromEntries(players.map((p) => [p.seat!, p.nickname.slice(0, 12)])),
+    [players],
+  );
   const nameOfSeat = (seat: number) => players.find((p) => p.seat === seat)?.nickname ?? `Player ${seat + 1}`;
 
   const finished = snapshot.phase === 'FINISHED';
+  useEffect(() => {
+    if (finished) play('win');
+  }, [finished]);
   const activeSeat = game.turnSeat;
   const myTurn = mySeat !== null && activeSeat === mySeat;
   const canRoll = myTurn && !!turn && turn.dice === null && !animating && !rolling && !finished;
@@ -120,6 +136,7 @@ export function OnlineGame() {
 
   const roll = () => {
     if (!canRoll) return;
+    rollClickedAt.current = Date.now();
     setRolling(true);
     socket.emit('game:roll');
   };
@@ -132,7 +149,7 @@ export function OnlineGame() {
 
   const homeCount = (seat: number) =>
     game.pieces.filter((p) => p.ownerSeat === seat && p.progress === game.L + game.H).length;
-  const perPlayer = game.pieces.length / N;
+  const perPlayer = game.pieces.length / Math.max(1, players.length);
 
   const status = finished
     ? 'Game complete'
@@ -187,6 +204,7 @@ export function OnlineGame() {
               onPieceClick={choose}
               showRoutes
               viewSeat={viewSeat}
+              seatLabels={seatLabels}
             />
           </div>
 
@@ -225,7 +243,7 @@ export function OnlineGame() {
           ) : (
             <section className="hidden rounded-3xl bg-white p-5 shadow-sm lg:block">
               <div className="flex justify-center">
-                <DiceFace value={dice} rolling={rolling} />
+                <RollingDice value={dice} rolling={rolling} />
               </div>
               <button
                 disabled={!canRoll}
@@ -287,7 +305,7 @@ export function OnlineGame() {
       {!finished && (
         <div className="fixed inset-x-0 bottom-0 z-20 flex items-center gap-3 border-t border-amber-200 bg-white/95 p-3 shadow-2xl backdrop-blur lg:hidden">
           <div className="scale-[0.6] origin-left -mr-8 -my-6">
-            <DiceFace value={dice} rolling={rolling} />
+            <RollingDice value={dice} rolling={rolling} />
           </div>
           <button
             disabled={!canRoll}

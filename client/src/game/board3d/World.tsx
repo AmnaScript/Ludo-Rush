@@ -19,6 +19,7 @@ export function World({
     showRoutes,
     viewSeat,
     starsPerSegment,
+    seatLabels,
     jobRef,
     actors,
     dogRef,
@@ -47,6 +48,14 @@ export function World({
     );
 
     const compact = game.N > 8;
+
+    // Corners nobody sits in (2 and 3 player games) stay neutral and empty.
+    const inPlay = useMemo(
+        () => new Set(game.pieces.map(p => p.ownerSeat)),
+        [game.pieces]
+    );
+    const seatColor = (seat: number) =>
+        inPlay.has(seat) ? playerColor(seat, game.N) : '#dbe7df';
 
     const legal = useMemo(
         () => new Set(validPieceIds),
@@ -80,7 +89,7 @@ export function World({
                     ...piecePosition(piece, game, layout),
                 ];
 
-                if (list.length > 1 && piece.progress >= 0) {
+                if (list.length > 1 && piece.progress >= 0 && piece.progress < game.L + game.H) {
                     const angle =
                         (2 * Math.PI * i) / list.length;
 
@@ -228,7 +237,7 @@ export function World({
                     >
                         <boxGeometry args={[5.25, 0.10, 5.25]} />
                         <meshStandardMaterial
-                            color={playerColor(seat, game.N)}
+                            color={inPlay.has(seat) ? playerColor(seat, game.N) : '#c4dccb'}
                         />
                     </mesh>
                 ))}
@@ -253,7 +262,7 @@ export function World({
                         key={`ring-${index}`}
                         position={position}
                         size={layout.tileSize}
-                        color={playerColor(seat, game.N)}
+                        color={seatColor(seat)}
                         safe={layout.safe.has(index)}
                         start={index % game.S === 0}
                         highlighted={highlights.has(index)}
@@ -273,7 +282,7 @@ export function World({
                         key={`lane-${seat}-${index}`}
                         position={position}
                         size={layout.tileSize * 0.92}
-                        color={playerColor(seat, game.N)}
+                        color={seatColor(seat)}
                         safe={false}
                         start={false}
                         highlighted={false}
@@ -296,9 +305,10 @@ export function World({
                 />
             </mesh>
 
-            {layout.bases.map((base, seat) => (
+            {layout.bases.map((base, seat) => inPlay.has(seat) && (
                 <Home
                     key={`home-${seat}`}
+                    label={seatLabels?.[seat]}
                     base={base}
                     color={playerColor(seat, game.N)}
                     seat={seat}

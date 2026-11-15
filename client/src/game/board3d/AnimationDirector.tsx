@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { type GameState } from '@ludo-rush/shared';
 import { cellPosition, type BoardLayout, type Vec3 } from '../boardLayout';
 import { type CaptureStyle, type MoveJob, type FXState, type ActorRegistry } from './types';
+import { play } from '../../audio/sfx';
 import { vec, place, moveBetween, faceToward, smooth } from './helpers';
 
 export function AnimationDirector({
@@ -74,6 +75,7 @@ export function AnimationDirector({
 
             if (job.time >= duration) {
                 job.from = target;
+                play('step');
                 job.index++;
                 job.time = 0;
             }
@@ -121,6 +123,15 @@ export function AnimationDirector({
                 job.victimFrom = vec(
                     victim.root.position
                 );
+
+                if (capture.style === 'GUN') play('gun');
+                else if (capture.style === 'SLAP') play('slap');
+                else {
+                    play('whistle');
+                    window.setTimeout(() => play('bark'), 500);
+                    window.setTimeout(() => play('door'), Math.max(1.7, Math.min(capture.lockMs / 1000, 3.2)) * 800);
+                }
+                if (capture.style !== 'SLAP') window.setTimeout(() => play('fall'), 350);
 
                 setEffect({
                     style: capture.style as CaptureStyle,
@@ -283,6 +294,7 @@ export function AnimationDirector({
 
         if (job.time >= 0.15) {
             if (job.move.pieceHome) {
+                play('home');
                 attacker.action = 'celebrate';
             } else {
                 attacker.action = 'idle';
