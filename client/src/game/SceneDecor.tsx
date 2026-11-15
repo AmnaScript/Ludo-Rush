@@ -116,7 +116,7 @@ export function SceneDecor({ layout }: Props) {
         const distance =
             layout.mode === 'classic'
                 ? 9.0
-                : layout.radius + 3.0;
+                : layout.radius + 4.0;
 
         return Array.from({ length: 20 }, (_, i) => {
             const angle = (i * 2 * Math.PI) / 20;
@@ -134,7 +134,7 @@ export function SceneDecor({ layout }: Props) {
         const distance =
             layout.mode === 'classic'
                 ? 8.2
-                : layout.radius + 2.35;
+                : layout.radius + 3.4;
 
         return Array.from({ length: 64 }, (_, i) => {
             const angle = (i * 2 * Math.PI) / 64;

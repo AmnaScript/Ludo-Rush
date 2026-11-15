@@ -3,7 +3,7 @@ import { useMemo, type MutableRefObject } from 'react';
 import { type Piece } from '@ludo-rush/shared';
 import { createLayout, piecePosition, playerColor, routeForPiece, type Vec3 } from '../boardLayout';
 import { SceneDecor } from '../SceneDecor';
-import { type Props, type MoveJob, type FXState, type ActorRegistry, type CameraActions } from './types';
+import { type Props, type MoveJob, type FXState, type ActorRegistry, type CameraActions, type FocusRef } from './types';
 import { Tile } from './Tile';
 import { Home } from './Home';
 import { Character } from './Character';
@@ -26,6 +26,7 @@ export function World({
     cameraActions,
     effect,
     setEffect,
+    focus,
 }: Props & {
     jobRef: MutableRefObject<MoveJob | null>;
     actors: ActorRegistry;
@@ -33,6 +34,7 @@ export function World({
     cameraActions: CameraActions;
     effect: FXState | null;
     setEffect: (effect: FXState | null) => void;
+    focus: FocusRef;
 }) {
     const layout = useMemo(
         () => createLayout(
@@ -148,11 +150,6 @@ export function World({
         showRoutes,
     ]);
 
-    const floorExtent =
-        layout.mode === 'classic'
-            ? 7.3
-            : layout.radius + 2.05;
-
     return (
         <>
             <color
@@ -186,31 +183,36 @@ export function World({
                     )
                 }
                 actions={cameraActions}
+                focus={focus}
             />
 
-            <mesh
-                position={[0, -0.53, 0]}
-                receiveShadow
-                castShadow
-            >
-                {layout.mode === 'classic' ? (
+            {layout.mode === 'classic' ? (
+                <mesh position={[0, -0.53, 0]} receiveShadow castShadow>
                     <boxGeometry args={[14.7, 0.67, 14.7]} />
-                ) : (
-                    <cylinderGeometry
-                        args={[
-                            floorExtent,
-                            floorExtent + 0.1,
-                            0.67,
-                            96,
-                        ]}
-                    />
-                )}
-
-                <meshStandardMaterial
-                    color="#27b961"
-                    roughness={0.78}
-                />
-            </mesh>
+                    <meshStandardMaterial color="#27b961" roughness={0.78} />
+                </mesh>
+            ) : (
+                layout.star && (
+                    <group position={[0, -0.53, 0]}>
+                        <mesh receiveShadow castShadow>
+                            <cylinderGeometry args={[layout.star.hub, layout.star.hub, 0.67, 48]} />
+                            <meshStandardMaterial color="#27b961" roughness={0.78} />
+                        </mesh>
+                        {layout.star.arms.map((arm, i) => (
+                            <mesh
+                                key={`arm-${i}`}
+                                position={[arm.pos[0], 0, arm.pos[2]]}
+                                rotation={[0, arm.rot, 0]}
+                                receiveShadow
+                                castShadow
+                            >
+                                <boxGeometry args={[arm.length, 0.67, arm.width]} />
+                                <meshStandardMaterial color="#27b961" roughness={0.78} />
+                            </mesh>
+                        ))}
+                    </group>
+                )
+            )}
 
             <mesh
                 rotation={[-Math.PI / 2, 0, 0]}
@@ -267,6 +269,7 @@ export function World({
                         start={index % game.S === 0}
                         highlighted={highlights.has(index)}
                         lane={false}
+                        rotation={layout.ringRot?.[index] ?? 0}
                         arrow={
                             index % 4 === 0
                                 ? angle
@@ -287,6 +290,7 @@ export function World({
                         start={false}
                         highlighted={false}
                         lane
+                        rotation={layout.laneRot?.[seat]?.[index] ?? 0}
                         arrow={null}
                     />
                 ))
@@ -345,6 +349,7 @@ export function World({
                 actors={actors}
                 dogRef={dogRef}
                 setEffect={setEffect}
+                focus={focus}
             />
         </>
     );

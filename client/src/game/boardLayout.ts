@@ -1,6 +1,7 @@
 
 import {
     getSafeTiles,
+    starGeometry,
     type BoardCell,
     type GameState,
     type Piece,
@@ -20,6 +21,11 @@ export interface BoardLayout {
     tileSize: number;
     radius: number;
     extent: number;
+    /** Rotation about Y for ring / lane tiles (star board arms). */
+    ringRot?: number[];
+    laneRot?: number[][];
+    /** Star board platform: hub radius and one slab per arm. */
+    star?: { hub: number; arms: { pos: Vec3; rot: number; length: number; width: number }[] };
 }
 
 export const CLASSIC_COLORS = [
@@ -43,14 +49,6 @@ export function playerColor(
     // Golden-angle hues keep consecutive seats far apart on the colour wheel.
     const hue = Math.round((seat * 137.508) % 360);
     return `hsl(${hue}, 85%, ${LIGHTNESS[seat % LIGHTNESS.length]}%)`;
-}
-
-export function segmentForPlayers(count: number): number {
-    if (count === 4) return 13;
-    if (count <= 8) return 8;
-    if (count <= 12) return 7;
-    if (count <= 16) return 6;
-    return 5;
 }
 
 const GRID_STEP = 0.92;
@@ -181,113 +179,109 @@ function createArena(
     game: GameState,
     starsPerSegment: number
 ): BoardLayout {
-    const pitch =
-        game.N <= 8
-            ? 0.82
-            : game.N <= 12
-                ? 0.71
-                : game.N <= 16
-                    ? 0.64
-                    : 0.59;
+    const N = game.N;
+    const p = GRID_STEP;
+    const phi = (2 * Math.PI) / N;
+    const { inner, column: c } = starGeometry(N);
+    const tipR = (inner + c) * p;
 
-    const tileSize = pitch * 0.88;
+    const armAngle = (arm: number) =>
+        -Math.PI / 2 + (((arm % N) + N) % N) * phi;
 
-    // Physical board radius grows slowly,
-    // even if the number of tiles increases.
-    const radius =
-        (game.L * pitch) / (2 * Math.PI);
+    const armPoint = (arm: number, radial: number, lateral: number): Vec3 => {
+        const a = armAngle(arm);
+        const dx = Math.cos(a);
+        const dz = Math.sin(a);
+        return [
+            dx * radial - dz * lateral,
+            0,
+            dz * radial + dx * lateral,
+        ];
+    };
 
-    const ring: Vec3[] = Array.from(
-        { length: game.L },
-        (_, index) => {
-            // Increasing angle travels clockwise
-            // when seen from the top of the board.
-            const angle =
-                -Math.PI / 2 +
-                (index * 2 * Math.PI) / game.L;
+    const ring: Vec3[] = [];
+    const ringRot: number[] = [];
 
-            return [
-                Math.cos(angle) * radius,
-                0,
-                Math.sin(angle) * radius,
-            ];
+    for (let seat = 0; seat < N; seat++) {
+        for (let j = 0; j < game.S; j++) {
+            let arm = seat;
+            let radial: number;
+            let lateral: number;
+
+            if (j < c) {
+                // inward along the right column of this seat's arm
+                radial = (inner + (c - 1 - j)) * p;
+                lateral = p;
+            } else if (j < 2 * c) {
+                // outward along the left column of the next arm
+                arm = seat + 1;
+                radial = (inner + (j - c)) * p;
+                lateral = -p;
+            } else {
+                // across the tip of the next arm
+                arm = seat + 1;
+                radial = (inner + c) * p;
+                lateral = (j - 2 * c - 1) * p;
+            }
+
+            ring.push(armPoint(arm, radial, lateral));
+            ringRot.push(-armAngle(arm));
         }
-    );
+    }
 
     const bases: Vec3[] = [];
     const lanes: Vec3[][] = [];
+    const laneRot: number[][] = [];
     const finish: Vec3[][] = [];
+    const compact = N > 8;
 
-    for (let seat = 0; seat < game.N; seat++) {
-        const startAngle =
-            -Math.PI / 2 +
-            ((seat * game.S) * 2 * Math.PI) / game.L;
-
-        const baseAngle =
-            startAngle +
-            (Math.PI * game.S) / game.L;
-
-        const baseDistance = radius + 1.65;
-
-        bases.push([
-            Math.cos(baseAngle) * baseDistance,
-            0,
-            Math.sin(baseAngle) * baseDistance,
-        ]);
-
-        const entryAngle =
-            -Math.PI / 2 +
-            (((seat * game.S - 1 + game.L) % game.L) *
-                2 *
-                Math.PI) /
-            game.L;
-
-        const step = Math.min(
-            pitch * 1.06,
-            (radius - 1.5) / game.H
-        );
-
-        finish.push(
-            finishCluster(
-                entryAngle,
-                Math.max(radius - (game.H + 1.1) * step, 0.75),
-                Math.min(0.2, pitch * 0.3)
-            )
-        );
+    for (let seat = 0; seat < N; seat++) {
+        bases.push(armPoint(seat, tipR + 1.9, 0));
 
         lanes.push(
-            Array.from({ length: game.H }, (_, i) => {
-                const distance =
-                    radius - (i + 1) * step;
+            Array.from({ length: game.H }, (_, i) =>
+                armPoint(seat, tipR - (i + 1) * p, 0)
+            )
+        );
+        laneRot.push(Array.from({ length: game.H }, () => -armAngle(seat)));
 
-                return [
-                    Math.cos(entryAngle) * distance,
-                    0,
-                    Math.sin(entryAngle) * distance,
-                ] as Vec3;
-            })
+        const laneEnd = tipR - game.H * p;
+        finish.push(
+            finishCluster(
+                armAngle(seat),
+                Math.max(laneEnd - 1.0, 0.9),
+                compact ? 0.14 : 0.2
+            )
         );
     }
 
+    const r0 = Math.max((inner - 0.7) * p, 0.5);
+    const r1 = tipR + 0.62;
+    const arms = Array.from({ length: N }, (_, arm) => ({
+        pos: armPoint(arm, (r0 + r1) / 2, 0),
+        rot: -armAngle(arm),
+        length: r1 - r0,
+        width: 2 * p + 0.9,
+    }));
+
     return {
         mode: 'arena',
+        star: { hub: inner * p + 0.35, arms },
         ring,
+        ringRot,
         lanes,
+        laneRot,
         bases,
         slots: bases.map(base =>
-            slotsAt(base, Math.min(0.38, pitch * 0.48))
+            slotsAt(base, compact ? 0.5 : 0.87)
         ),
         finish,
         safe: new Set(
-            getSafeTiles(
-                game.N,
-                game.S,
-                starsPerSegment
-            )
+            getSafeTiles(N, game.S, starsPerSegment)
         ),
-        tileSize,
-        radius,
-        extent: radius + 3.5,
+        tileSize: 0.84,
+        radius: tipR + 0.6,
+        extent: tipR + 4.2,
     };
 }
 
