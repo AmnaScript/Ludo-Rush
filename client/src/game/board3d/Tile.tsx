@@ -12,6 +12,7 @@ export function Tile({
     highlighted,
     lane,
     arrow,
+    rotation = 0,
 }: {
     position: Vec3;
     size: number;
@@ -21,6 +22,7 @@ export function Tile({
     highlighted: boolean;
     lane: boolean;
     arrow: number | null;
+    rotation?: number;
 }) {
     const fill = highlighted
         ? '#ffe864'
@@ -30,6 +32,7 @@ export function Tile({
 
     return (
         <group position={position}>
+            <group rotation={[0, rotation, 0]}>
             <RoundedBox
                 args={[size, 0.18, size]}
                 radius={size * 0.09}
@@ -69,6 +72,7 @@ export function Tile({
                     }
                 />
             </mesh>
+            </group>
 
             {(safe || start) && !lane && (
                 <Text

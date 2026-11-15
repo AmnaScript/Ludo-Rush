@@ -1,19 +1,34 @@
 import type { GameSettings, GameState } from './gameTypes';
 import { createGame, createSettings } from './rules';
 
+/** Home-lane length used by every board. */
+export const LANE_LENGTH = 6;
+
+/**
+ * Star board geometry (5+ players): every player owns an arm like the arms of
+ * the classic cross. Distances are in tile pitches.
+ * `inner` is how far from the centre the inner end of an arm sits so that the
+ * right column of one arm touches the left column of the next one.
+ */
+export function starGeometry(count: number): { inner: number; column: number } {
+    const half = Math.PI / count;
+    const inner = (Math.cos(half) + 0.5) / Math.sin(half);
+    // Long enough that the home lane never runs into the centre.
+    const column = Math.max(2, Math.ceil(LANE_LENGTH + 2.0 - inner));
+    return { inner, column };
+}
+
 /** Ring segment length per player count (shared by client layout and server). */
 export function segmentForPlayers(count: number): number {
     if (count <= 4) return 13;
-    if (count <= 8) return 8;
-    if (count <= 12) return 7;
-    if (count <= 16) return 6;
-    return 5;
+    // up one side of an arm, across the tip (3 tiles), down the next arm
+    return 2 * starGeometry(count).column + 3;
 }
 
 /**
  * Seats used for a given number of players.
  * 2 to 4 players use the classic cross board; 2 players sit opposite each
- * other and 3 players leave one corner empty. 5+ players use the ring arena.
+ * other and 3 players leave one corner empty. 5+ players use a star board.
  */
 export function seatsForPlayers(count: number): number[] {
     if (count <= 1) return [0];
@@ -31,7 +46,7 @@ export function arenaSettings(
     return createSettings(engineSeats, {
         piecesPerPlayer,
         segmentSize: segmentForPlayers(engineSeats),
-        laneLength: 6,
+        laneLength: LANE_LENGTH,
         captureStyles: { SLAP: 1, DOG: 1, GUN: 1 },
     });
 }

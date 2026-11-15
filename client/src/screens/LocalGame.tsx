@@ -11,9 +11,6 @@ import {
   ArrowRight,
   Camera,
   CheckCircle2,
-  Focus,
-  Minus,
-  Plus,
   RotateCcw,
   Route,
   Trophy,
@@ -39,6 +36,8 @@ import {
 
 import { playerColor } from '../game/boardLayout';
 import { ROLL_MS, RollingDice } from '../components/RollingDice';
+import { GameStage } from '../components/GameStage';
+import { RulesCard } from '../components/RulesCard';
 
 
 type GamePhase =
@@ -406,6 +405,15 @@ export function LocalGame({
       setPhase('CHOOSE');
 
       busyRef.current = false;
+
+      // Only one possible move: play it for the player after a short beat.
+      if (result.validPieceIds.length === 1) {
+        const only = result.validPieceIds[0]!;
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null;
+          if (mountedRef.current) void choosePieceRef.current(only);
+        }, 800);
+      }
     } catch (error) {
       console.error(error);
       log('Dice roll failed.');
@@ -480,6 +488,8 @@ export function LocalGame({
     [log, updateGame, updateLegal]
   );
 
+  const choosePieceRef = useRef<(id: string) => Promise<void>>(async () => undefined);
+
   const choosePiece = useCallback(
     async (pieceId: string) => {
       if (busyRef.current) return;
@@ -545,6 +555,7 @@ export function LocalGame({
     },
     [finishMove, log, updateLegal]
   );
+  choosePieceRef.current = choosePiece;
 
   const homeCount = (seat: number) => {
     if (!game) return 0;
@@ -570,156 +581,27 @@ export function LocalGame({
               ? 'Passing to the next player...'
               : 'Final rankings are ready.';
 
-  return (
-    <div>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_335px]">
-          <section className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <span
-                  className="h-5 w-5 rounded-full border-2 border-white shadow"
-                  style={{
-                    backgroundColor: playerColor(
-                      activeSeat,
-                      visibleGame.N
-                    ),
-                  }}
-                />
+  const dock =
+    phase === 'SETUP' || phase === 'FINISHED' ? undefined : (
+      <>
+        <RollingDice value={dice} rolling={rolling} size={64} />
+        <button
+          disabled={phase !== 'ROLL'}
+          onClick={rollDice}
+          className={`rounded-2xl px-5 py-3 text-lg font-black text-[#263640] transition ${phase === 'ROLL' ? 'animate-pulse bg-[#ffbd43] shadow-lg hover:bg-[#ffd06d]' : 'bg-[#e8e1d2] opacity-70'}`}
+        >
+          {phase === 'ROLL'
+            ? '🎲 ROLL'
+            : phase === 'CHOOSE'
+              ? 'Tap a glowing character'
+              : '…'}
+        </button>
+      </>
+    );
 
-                <div>
-                  <h2 className="text-lg font-black">
-                    {phase === 'SETUP'
-                      ? 'Explore the arena'
-                      : phase === 'FINISHED'
-                        ? 'Game complete'
-                        : `${nameOf(activeSeat)}'s turn`}
-                  </h2>
+  const side = (
+    <>
 
-                  <p className="text-sm text-[#71828c]">
-                    {instruction}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  aria-label="Zoom out"
-                  onClick={() =>
-                    boardRef.current?.zoomOut()
-                  }
-                  className="rounded-xl bg-[#edf4f3] p-2"
-                >
-                  <Minus size={18} />
-                </button>
-
-                <button
-                  aria-label="Zoom in"
-                  onClick={() =>
-                    boardRef.current?.zoomIn()
-                  }
-                  className="rounded-xl bg-[#edf4f3] p-2"
-                >
-                  <Plus size={18} />
-                </button>
-
-                <button
-                  aria-label="Reset camera"
-                  onClick={() =>
-                    boardRef.current?.resetView()
-                  }
-                  className="rounded-xl bg-[#edf4f3] p-2"
-                >
-                  <Focus size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-3xl border-4 border-white bg-white p-1 shadow-xl">
-              <Board3D
-                ref={boardRef}
-                game={visibleGame}
-                seatLabels={seatLabels}
-                validPieceIds={legalIds}
-                onPieceClick={choosePiece}
-                showRoutes={showRoutes}
-                viewSeat={viewSeat}
-                starsPerSegment={
-                  settingsRef.current?.starTilesPerSegment ??
-                  1
-                }
-              />
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[#607987]">
-              <p>
-                {visibleGame.L} track tiles ·{' '}
-                {seatsInPlay(visibleGame).length} players · Clockwise
-              </p>
-
-              <label className="flex cursor-pointer items-center gap-2 font-semibold">
-                <Route size={15} />
-                Show move paths
-
-                <input
-                  type="checkbox"
-                  checked={showRoutes}
-                  onChange={event =>
-                    setShowRoutes(
-                      event.target.checked
-                    )
-                  }
-                  className="accent-emerald-600"
-                />
-              </label>
-            </div>
-
-            {game && (
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-3">
-                {seatsInPlay(game).map(
-                  (seat) => (
-                    <div
-                      key={seat}
-                      className={`min-w-[120px] shrink-0 rounded-2xl border-2 p-3 ${seat === activeSeat &&
-                          phase !== 'FINISHED'
-                          ? 'border-amber-400 bg-amber-50'
-                          : 'border-white bg-white'
-                        }`}
-                    >
-                      <div className="flex items-center gap-2 font-bold">
-                        <span
-                          className="h-3 w-3 rounded-full"
-                          style={{
-                            backgroundColor: playerColor(
-                              seat,
-                              game.N
-                            ),
-                          }}
-                        />
-
-                        {nameOf(seat).replace("Player ", "P")}
-                      </div>
-
-                      <p className="mt-2 text-xs text-slate-500">
-                        {homeCount(seat)}/
-                        {settingsRef.current?.piecesPerPlayer ??
-                          4}{' '}
-                        finished
-                      </p>
-
-                      {game.ranking.includes(seat) && (
-                        <p className="mt-2 flex items-center gap-1 text-xs text-emerald-600">
-                          <CheckCircle2 size={13} />
-                          Finished
-                        </p>
-                      )}
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </section>
-
-          <aside className="space-y-4">
             <section className="rounded-3xl bg-white p-5 shadow-sm">
               <div className="mb-4 flex items-center gap-2 text-[#188e7d]">
                 <Camera size={18} />
@@ -892,27 +774,6 @@ export function LocalGame({
                   {instruction}
                 </p>
 
-                <div className="my-8 flex justify-center">
-                  <RollingDice
-                    value={dice}
-                    rolling={rolling}
-                  />
-                </div>
-
-                {phase !== 'FINISHED' && (
-                  <button
-                    disabled={phase !== 'ROLL'}
-                    onClick={rollDice}
-                    className="w-full rounded-2xl bg-[#ffbd43] p-4 font-black text-[#263640] hover:bg-[#ffd06d] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {phase === 'ROLL'
-                      ? '🎲 Roll dice'
-                      : phase === 'CHOOSE'
-                        ? 'Choose a glowing character'
-                        : 'Please wait...'}
-                  </button>
-                )}
-
                 {phase === 'CHOOSE' && (
                   <div className="mt-4">
                     <p className="mb-2 text-sm font-semibold">
@@ -1061,8 +922,104 @@ export function LocalGame({
                 ))}
               </div>
             </section>
-          </aside>
+
+      <section className="rounded-3xl bg-white p-4 shadow-sm">
+        <h2 className="mb-2 font-black">Players</h2>
+            {game && (
+              <div className="grid grid-cols-2 gap-2">
+                {seatsInPlay(game).map(
+                  (seat) => (
+                    <div
+                      key={seat}
+                      className={`rounded-2xl border-2 p-3 ${seat === activeSeat &&
+                          phase !== 'FINISHED'
+                          ? 'border-amber-400 bg-amber-50'
+                          : 'border-white bg-white'
+                        }`}
+                    >
+                      <div className="flex items-center gap-2 font-bold">
+                        <span
+                          className="h-3 w-3 rounded-full"
+                          style={{
+                            backgroundColor: playerColor(
+                              seat,
+                              game.N
+                            ),
+                          }}
+                        />
+
+                        {nameOf(seat).replace("Player ", "P")}
+                      </div>
+
+                      <p className="mt-2 text-xs text-slate-500">
+                        {homeCount(seat)}/
+                        {settingsRef.current?.piecesPerPlayer ??
+                          4}{' '}
+                        finished
+                      </p>
+
+                      {game.ranking.includes(seat) && (
+                        <p className="mt-2 flex items-center gap-1 text-xs text-emerald-600">
+                          <CheckCircle2 size={13} />
+                          Finished
+                        </p>
+                      )}
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+        <div className="mt-3 text-xs text-[#607987]">
+              <label className="flex cursor-pointer items-center gap-2 font-semibold">
+                <Route size={15} />
+                Show move paths
+
+                <input
+                  type="checkbox"
+                  checked={showRoutes}
+                  onChange={event =>
+                    setShowRoutes(
+                      event.target.checked
+                    )
+                  }
+                  className="accent-emerald-600"
+                />
+              </label>
+
         </div>
-    </div>
+      </section>
+
+      <RulesCard />
+    </>
+  );
+
+  return (
+    <GameStage
+      color={playerColor(activeSeat, visibleGame.N)}
+      title={
+        phase === 'SETUP'
+          ? 'Explore the arena'
+          : phase === 'FINISHED'
+            ? 'Game complete'
+            : `${nameOf(activeSeat)}'s turn`
+      }
+      subtitle={instruction}
+      board={
+        <Board3D
+          ref={boardRef}
+          game={visibleGame}
+          seatLabels={seatLabels}
+          validPieceIds={legalIds}
+          onPieceClick={choosePiece}
+          showRoutes={showRoutes}
+          viewSeat={viewSeat}
+          starsPerSegment={settingsRef.current?.starTilesPerSegment ?? 1}
+        />
+      }
+      dock={dock}
+      side={side}
+      sideLabel="Menu & players"
+    />
   );
 }
