@@ -9,8 +9,7 @@ import {
 import {
   DIFFICULTY_INFO,
   applyMove,
-  capturingMoves,
-  createArenaGame,
+    createArenaGame,
   type Difficulty,
   finalRanking,
   isGameOver,
@@ -141,7 +140,8 @@ export function LocalGame({
     : {};
   const activeSeat = game?.turnSeat ?? 0;
 
-  const viewSeat = activeSeat;
+  // The board never turns between players.
+  const viewSeat = 0;
 
   const log = useCallback(
     (message: string) => {
@@ -572,23 +572,12 @@ export function LocalGame({
   };
 
   const settings = settingsRef.current;
-  const captureIds =
-    game && settings && phase === 'CHOOSE' && game.dice !== null
-      ? capturingMoves(game, settings)
-      : [];
-  const warnHard =
-    settings?.missedCapturePenalty && captureIds.length > 0
-      ? captureIds.length === legalIds.length && legalIds.length === 1
-        ? null
-        : 'Hard rule: you can capture! If you move another character, your capturing character goes home.'
-      : null;
-
   const hint =
     phase === 'ROLL'
-      ? 'Press ROLL'
+      ? 'Tap the dice'
       : phase === 'CHOOSE'
         ? legalIds.length > 1
-          ? `Tap one of the glowing characters to move ${dice} steps`
+          ? 'Tap a glowing character'
           : `Moving ${dice} steps…`
         : phase === 'ANIMATING'
           ? 'Watch the move'
@@ -665,7 +654,6 @@ export function LocalGame({
         color={playerColor(activeSeat, game.N)}
         who={`${nameOf(activeSeat)}'s turn`}
         hint={hint}
-        warn={warnHard}
         dice={dice}
         rolling={rolling}
         canRoll={phase === 'ROLL'}
@@ -701,7 +689,6 @@ export function LocalGame({
             {legalIds.map(id => (
               <button key={id} onClick={() => choosePiece(id)} className="btn btn-small">
                 Move character {Number(id.split('-p')[1] ?? 0) + 1}
-                {captureIds.includes(id) ? ' (captures!)' : ''}
               </button>
             ))}
           </div>
