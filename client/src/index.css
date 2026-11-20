@@ -1,5 +1,97 @@
 @import 'tailwindcss';
-:root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #fff; background: #101222; }
+@import '@fontsource/lilita-one/400.css';
+@import '@fontsource/nunito/600.css';
+@import '@fontsource/nunito/800.css';
+
+/* ---- Ludo Rush look: a painted board-game box on a wooden table ---- */
+:root {
+  --ink: #2b1a12;
+  --ink-soft: #6b5446;
+  --paper: #f7ecd3;
+  --paper-2: #ecd9ae;
+  --wood: #5a3720;
+  --wood-dark: #3b2314;
+  --red: #d93a2f;
+  --blue: #2f6bd8;
+  --yellow: #f2b81c;
+  --green: #2a9d57;
+  --brass: #e8a91e;
+  font-family: 'Nunito', ui-rounded, system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--wood-dark);
+}
+
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
-button { cursor: pointer; }
+button { cursor: pointer; font-family: inherit; }
+
+.font-title { font-family: 'Lilita One', 'Nunito', sans-serif; letter-spacing: 0.02em; }
+
+.table-bg {
+  background-color: var(--wood);
+  background-image:
+    radial-gradient(ellipse at 50% 30%, rgb(255 220 160 / 0.16), transparent 62%),
+    repeating-linear-gradient(92deg, rgb(0 0 0 / 0.05) 0 2px, transparent 2px 9px),
+    repeating-linear-gradient(88deg, rgb(255 255 255 / 0.025) 0 1px, transparent 1px 14px);
+}
+
+.panel {
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  box-shadow: 0 6px 0 var(--ink);
+}
+.panel-title { font-family: 'Lilita One', sans-serif; font-size: 1.35rem; line-height: 1.1; }
+
+.btn {
+  font-family: 'Lilita One', sans-serif;
+  letter-spacing: 0.03em;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  padding: 0.7rem 1.2rem;
+  color: var(--ink);
+  background: var(--brass);
+  box-shadow: 0 5px 0 var(--ink);
+  transition: transform 0.08s, box-shadow 0.08s, filter 0.15s;
+}
+.btn:hover:not(:disabled) { filter: brightness(1.07); }
+.btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-red { background: var(--red); color: #fff; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-blue { background: var(--blue); color: #fff; }
+.btn-paper { background: var(--paper); }
+.btn-small { padding: 0.35rem 0.75rem; font-size: 0.9rem; box-shadow: 0 3px 0 var(--ink); }
+
+.chip {
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 0.45rem 0.8rem;
+  background: var(--paper);
+  font-weight: 800;
+  box-shadow: 0 3px 0 var(--ink);
+}
+.chip[aria-pressed='true'] { background: var(--brass); transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.chip:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.field {
+  width: 100%;
+  background: #fffaf0;
+  border: 3px solid var(--ink);
+  border-radius: 12px;
+  padding: 0.6rem 0.8rem;
+  font-weight: 800;
+  color: var(--ink);
+  outline: none;
+}
+.field:focus { box-shadow: 0 0 0 4px rgb(242 184 28 / 0.55); }
+
+.label { font-weight: 800; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-soft); }
+
+.tilt-l { transform: rotate(-1.2deg); }
+.tilt-r { transform: rotate(1deg); }
+
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.bob { animation: bob 2.4s ease-in-out infinite; }
+@keyframes pulse-ring { 0% { box-shadow: 0 5px 0 var(--ink), 0 0 0 0 rgb(242 184 28 / 0.9); } 100% { box-shadow: 0 5px 0 var(--ink), 0 0 0 16px rgb(242 184 28 / 0); } }
+.pulse-ring { animation: pulse-ring 1.2s ease-out infinite; }

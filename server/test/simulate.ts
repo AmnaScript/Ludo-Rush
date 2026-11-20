@@ -14,7 +14,8 @@ import type {
 type Client = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 const SERVER = process.env.SERVER ?? 'http://localhost:5055';
-const PLAYERS = Number(process.env.PLAYERS ?? 16);
+const PLAYERS = Number(process.env.PLAYERS ?? 4);
+const DIFFICULTY = process.env.DIFFICULTY ?? 'MEDIUM';
 const started = Date.now();
 const fail = (msg: string): never => {
     console.error('FAIL:', msg);
@@ -44,7 +45,7 @@ async function main() {
     const errors: string[] = [];
 
     const host = await connect();
-    const created = await ackOf(host, 'room:create', { nickname: 'Host', options: { piecesPerPlayer: 1, turnSeconds: 8 } } as never);
+    const created = await ackOf(host, 'room:create', { nickname: 'Host', options: { piecesPerPlayer: 2, turnSeconds: 8, difficulty: DIFFICULTY } } as never);
     if (!created.ok) return fail(created.error);
     const code = created.code;
     clients.push(host);

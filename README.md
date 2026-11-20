@@ -1,6 +1,6 @@
 # Ludo Rush
 
-A multiplayer 3D Ludo web game: small people instead of tokens, three cartoon capture scenes (gun, slap, dog chase), rooms that fit any number of players, and live chat. Built from the 13-page project specification.
+A multiplayer 3D Ludo web game: small people instead of tokens, three cartoon capture scenes (gun, slap, dog chase), rooms of 2 to 4 players with Easy / Medium / Hard rules, and live chat. Built from the 13-page project specification.
 
 ## Requirements
 - Node.js 20.19+ or 22.12+ (recommended: Node 22)
@@ -25,7 +25,9 @@ Open the client in two or more browser tabs: create a room in one, join with the
 ## What works today
 - **Rooms and lobby:** 6-character codes, invite link, host settings (characters per player, seconds per turn), host-only start, spectators for late joiners, rematch.
 - **Server-authoritative game:** the server rolls the dice (`crypto.randomInt`), validates every move with the shared rules engine, and picks the capture style.
-- **Any player count:** 2 to 32 players, board generated from the player count.
+- **2 to 4 players** on the classic cross board.
+- **Difficulty:** Easy (relaxed: leave base on 1 or 6, no exact finish), Medium (classic), Hard (skip a possible capture and your own capturing character goes home, no star tiles, pairs not protected). Rules live in `shared/src/rules.ts` (`difficultyOverrides`) and are shown in-game.
+- **One-screen play:** board fills the window, dice dock floats on it, full screen button (F key). If the browser blocks full screen (e.g. VS Code's Simple Browser) it falls back to a hide-the-panel focus mode; open the game in Chrome/Edge for real full screen.
 - **Turn timer, bots and reconnect:** timeouts auto-play, disconnected players are covered, and after 60 s a bot takes the seat. Reloading the page rejoins the same seat (token in localStorage).
 - **Chat:** live next to the board, system messages for joins, captures and finishes, 200-character limit, 1 message/second, rendered as plain text.
 - **One-device mode:** pass-and-play on a single screen.
@@ -39,12 +41,12 @@ npm test
 npm run build
 ```
 
-### Load test (16 fake players over real sockets)
+### Load test (fake players over real sockets, 2-4 per room)
 
 ```bash
 cd server
 LUDO_TIMING_SCALE=0.02 PORT=5055 npx tsx src/index.ts        # terminal 1
-PLAYERS=16 SERVER=http://localhost:5055 npx tsx test/simulate.ts  # terminal 2
+PLAYERS=4 DIFFICULTY=HARD SERVER=http://localhost:5055 npx tsx test/simulate.ts  # terminal 2
 ```
 
 `LUDO_TIMING_SCALE` shrinks every server delay so a full game finishes in under a minute. Never set it in production.

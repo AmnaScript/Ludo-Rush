@@ -1,122 +1,89 @@
 import * as THREE from 'three';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
 import { type BoardLayout } from '../boardLayout';
 import { type CameraActions } from './types';
 
+/**
+ * Fixed, automatic camera (no user zoom / orbit). It sits behind the viewing
+ * seat's home and swoops in on capture scenes via `focus`.
+ */
 export function HomeCamera({
     layout,
     seat,
     actions,
+    focus,
 }: {
     layout: BoardLayout;
     seat: number;
     actions: CameraActions;
+    focus: MutableRefObject<THREE.Vector3 | null>;
 }) {
     const { camera, size } = useThree();
+    const look = useRef(new THREE.Vector3());
+    const wantPos = useRef(new THREE.Vector3());
+    const wantLook = useRef(new THREE.Vector3());
+    const ready = useRef(false);
 
-    const target = useRef(new THREE.Vector3());
-    const moving = useRef(false);
-
-    const setSeatView = (instant: boolean) => {
+    const compute = () => {
         const base = layout.bases[seat];
-        const direction = new THREE.Vector3(
-            base[0],
-            0,
-            base[2]
-        ).normalize();
+        const dir = new THREE.Vector3(base[0], 0, base[2]).normalize();
+        const f = focus.current;
 
-        const { width, height } = size;
-        const aspect = width / Math.max(1, height);
-        // Narrow canvases (phones) need more distance so the whole arena fits.
-        const fit = Math.max(1, 1.3 / aspect);
-        const distance = layout.extent * 1.8 * fit;
-
-        target.current.set(
-            direction.x * distance,
-            layout.extent * 1.3 * fit,
-            direction.z * distance
-        );
-
-        if (instant) {
-            camera.position.copy(target.current);
-            camera.lookAt(0, 0, 0);
-            moving.current = false;
-        } else {
-            moving.current = true;
+        if (f) {
+            wantLook.current.copy(f);
+            wantPos.current.set(
+                f.x + dir.x * 8.5,
+                8.6,
+                f.z + dir.z * 8.5
+            );
+            return;
         }
+
+        const aspect = size.width / Math.max(1, size.height);
+        // Narrow canvases (phones) need more distance so the whole board fits.
+        const fit = Math.max(1, 1.25 / aspect);
+        const distance = layout.extent * 2.0 * fit;
+        // look a little towards the viewer so the board sits above the dice dock
+        wantLook.current.set(dir.x * layout.extent * 0.3, 0, dir.z * layout.extent * 0.3);
+        wantPos.current.set(
+            dir.x * distance,
+            layout.extent * 1.6 * fit,
+            dir.z * distance
+        );
     };
 
     useEffect(() => {
-        setSeatView(true);
-        // Set initial position or geometry change.
-    }, [camera, layout]);
+        ready.current = false;
+    }, [layout, size.width, size.height]);
 
     useEffect(() => {
-        setSeatView(false);
-        // Smooth rotation when the chosen seat changes.
-    }, [seat]);
-
-    useEffect(() => {
-        const zoom = (factor: number) => {
-            const length = camera.position.length();
-
-            const next = THREE.MathUtils.clamp(
-                length * factor,
-                3,
-                layout.extent * 5
-            );
-
-            camera.position.multiplyScalar(next / length);
-            target.current.copy(camera.position);
-            moving.current = false;
-        };
-
         actions.current = {
-            zoomIn: () => zoom(0.82),
-            zoomOut: () => zoom(1.22),
-            resetView: () => setSeatView(false),
+            resetView: () => {
+                ready.current = false;
+            },
         };
-
         return () => {
             actions.current = null;
         };
-    }, [actions, camera, layout, seat]);
+    }, [actions]);
 
     useFrame((_, delta) => {
-        if (!moving.current) return;
+        compute();
 
-        camera.position.lerp(
-            target.current,
-            1 - Math.exp(-delta * 3.7)
-        );
-
-        camera.lookAt(0, 0, 0);
-
-        if (
-            camera.position.distanceTo(
-                target.current
-            ) < 0.03
-        ) {
-            camera.position.copy(target.current);
-            moving.current = false;
+        if (!ready.current) {
+            camera.position.copy(wantPos.current);
+            look.current.copy(wantLook.current);
+            camera.lookAt(look.current);
+            ready.current = true;
+            return;
         }
+
+        const k = 1 - Math.exp(-delta * (focus.current ? 4.2 : 3));
+        camera.position.lerp(wantPos.current, k);
+        look.current.lerp(wantLook.current, k);
+        camera.lookAt(look.current);
     });
 
-    return (
-        <OrbitControls
-            makeDefault
-            target={[0, 0, 0]}
-            enableDamping
-            dampingFactor={0.08}
-            minDistance={3}
-            maxDistance={layout.extent * 5}
-            minPolarAngle={0.16}
-            maxPolarAngle={Math.PI / 2.08}
-            onStart={() => {
-                moving.current = false;
-            }}
-        />
-    );
+    return null;
 }

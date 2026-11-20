@@ -12,6 +12,7 @@ export function Tile({
     highlighted,
     lane,
     arrow,
+    rotation = 0,
 }: {
     position: Vec3;
     size: number;
@@ -21,15 +22,17 @@ export function Tile({
     highlighted: boolean;
     lane: boolean;
     arrow: number | null;
+    rotation?: number;
 }) {
     const fill = highlighted
         ? '#ffe864'
         : lane || start
             ? color
-            : '#ffffff';
+            : '#fffaf0';
 
     return (
         <group position={position}>
+            <group rotation={[0, rotation, 0]}>
             <RoundedBox
                 args={[size, 0.18, size]}
                 radius={size * 0.09}
@@ -57,7 +60,7 @@ export function Tile({
                             ? '#ffc53d'
                             : lane
                                 ? '#ffffff'
-                                : '#dceaf3'
+                                : '#efe1bd'
                     }
                     transparent
                     opacity={
@@ -69,6 +72,7 @@ export function Tile({
                     }
                 />
             </mesh>
+            </group>
 
             {(safe || start) && !lane && (
                 <Text
@@ -76,7 +80,7 @@ export function Tile({
                     position={[0, 0.218, 0]}
                     rotation={[-Math.PI / 2, 0, 0]}
                     fontSize={size * 0.4}
-                    color={start ? '#213748' : '#e4a323'}
+                    color={start ? '#2b1a12' : '#e4a323'}
                     anchorX="center"
                     anchorY="middle"
                 >

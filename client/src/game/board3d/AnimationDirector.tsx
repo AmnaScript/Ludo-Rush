@@ -3,7 +3,7 @@ import { type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { type GameState } from '@ludo-rush/shared';
 import { cellPosition, type BoardLayout, type Vec3 } from '../boardLayout';
-import { type CaptureStyle, type MoveJob, type FXState, type ActorRegistry } from './types';
+import { type CaptureStyle, type MoveJob, type FXState, type ActorRegistry, type FocusRef } from './types';
 import { play } from '../../audio/sfx';
 import { vec, place, moveBetween, faceToward, smooth } from './helpers';
 
@@ -14,6 +14,7 @@ export function AnimationDirector({
     actors,
     dogRef,
     setEffect,
+    focus,
 }: {
     game: GameState;
     layout: BoardLayout;
@@ -21,6 +22,7 @@ export function AnimationDirector({
     actors: ActorRegistry;
     dogRef: MutableRefObject<THREE.Group | null>;
     setEffect: (effect: FXState | null) => void;
+    focus: FocusRef;
 }) {
     useFrame((_, deltaRaw) => {
         const job = jobRef.current;
@@ -36,7 +38,13 @@ export function AnimationDirector({
         }
 
         if (job.stage === 'travel') {
-            if (job.index >= job.move.path.length) {
+            // On a capture the attacker stops one tile BEHIND the victim,
+            // plays the scene, and only then steps into the victim's tile.
+            const travelCount = job.move.captures.length
+                ? Math.max(0, job.move.path.length - 1)
+                : job.move.path.length;
+
+            if (job.index >= travelCount) {
                 attacker.action = 'idle';
                 job.stage = job.move.captures.length
                     ? 'capture'
@@ -88,9 +96,10 @@ export function AnimationDirector({
                 job.move.captures[job.captureIndex];
 
             if (!capture) {
-                job.stage = 'finish';
+                job.stage = 'stepin';
                 job.time = 0;
                 setEffect(null);
+                focus.current = null;
                 return;
             }
 
@@ -133,21 +142,31 @@ export function AnimationDirector({
                 }
                 if (capture.style !== 'SLAP') window.setTimeout(() => play('fall'), 350);
 
+                const dur = Math.max(1.7, Math.min(capture.lockMs / 1000, 3.2));
+                const aPos = vec(attacker.root.position);
+                const vPos = vec(victim.root.position);
+                focus.current = new THREE.Vector3(
+                    (aPos[0] + vPos[0]) / 2,
+                    0.6,
+                    (aPos[2] + vPos[2]) / 2
+                );
+
                 setEffect({
                     style: capture.style as CaptureStyle,
                     label:
                         capture.style === 'SLAP'
                             ? 'SMACK!'
                             : capture.style === 'DOG'
-                                ? 'WOOF! RUN!'
+                                ? 'WOOF! WOOF!'
                                 : capture.weapon === 'RIFLE'
-                                    ? 'RIFLE! POP!'
-                                    : 'BANG! POP!',
-                    position: [
-                        attacker.root.position.x,
-                        0,
-                        attacker.root.position.z,
-                    ],
+                                    ? 'RIFLE! POW!'
+                                    : 'BANG!',
+                    duration: dur,
+                    attackerSeat: game.pieces.find(piece => piece.id === job.move.pieceId)?.ownerSeat ?? 0,
+                    victimSeat: victimPiece.ownerSeat,
+                    attackerPos: aPos,
+                    victimPos: vPos,
+                    homePos: home,
                 });
             }
 
@@ -165,6 +184,19 @@ export function AnimationDirector({
 
             const start =
                 job.victimFrom ?? vec(victim.root.position);
+
+            faceToward(attacker.root, vec(attacker.root.position), start);
+
+            if (capture.style === 'SLAP' || capture.style === 'DOG') {
+                const vp = victim.root.position;
+                const f = focus.current ?? (focus.current = new THREE.Vector3());
+                f.set(
+                    (vp.x + attacker.root.position.x) / 2,
+                    0.6,
+                    (vp.z + attacker.root.position.z) / 2
+                );
+                if (capture.style === 'DOG' && t > 0.3) f.set(vp.x, 0.6, vp.z);
+            }
 
             if (capture.style === 'SLAP') {
                 attacker.action =
@@ -218,6 +250,7 @@ export function AnimationDirector({
 
                 if (dog) {
                     dog.visible = t >= 0.1;
+                    dog.scale.setScalar(1.6);
 
                     const chase = smooth(
                         (t - 0.23) / 0.75
@@ -285,12 +318,118 @@ export function AnimationDirector({
                 job.time = 0;
 
                 setEffect(null);
+                focus.current = null;
+            }
+
+            return;
+        }
+
+        if (job.stage === 'stepin') {
+            const last = job.move.path[job.move.path.length - 1];
+
+            if (!last) {
+                job.stage = 'finish';
+                job.time = 0;
+                return;
+            }
+
+            const target = cellPosition(last, layout);
+            const duration = 0.3;
+
+            job.time += delta;
+            attacker.action = 'walk';
+            faceToward(attacker.root, job.from, target);
+            moveBetween(
+                attacker.root,
+                job.from,
+                target,
+                smooth(job.time / duration)
+            );
+
+            if (job.time >= duration) {
+                job.from = target;
+                attacker.action = 'idle';
+                job.stage = 'finish';
+                job.time = 0;
+            }
+
+            return;
+        }
+
+        if (job.stage === 'penalty') {
+            const penalty = job.move.penalty;
+            const victim = penalty
+                ? actors.current.get(penalty.pieceId)
+                : undefined;
+            const piece = penalty
+                ? game.pieces.find(p => p.id === penalty.pieceId)
+                : undefined;
+
+            if (!penalty || !victim || !piece) {
+                job.penaltyDone = true;
+                job.stage = 'finish';
+                job.time = 0;
+                return;
+            }
+
+            const homeIndex =
+                Number(penalty.pieceId.split('-p')[1] ?? 0) % 4;
+            const home = layout.slots[piece.ownerSeat][homeIndex];
+            const duration = 2.1;
+
+            if (!job.captureStarted) {
+                job.captureStarted = true;
+                job.time = 0;
+                const pos = vec(victim.root.position);
+                focus.current = new THREE.Vector3(pos[0], 0.6, pos[2]);
+                play('fall');
+                setEffect({
+                    style: 'PENALTY',
+                    label: 'OOPS!',
+                    duration,
+                    attackerSeat: piece.ownerSeat,
+                    victimSeat: piece.ownerSeat,
+                    attackerPos: pos,
+                    victimPos: pos,
+                    homePos: home,
+                });
+            }
+
+            job.time += delta;
+            const t = Math.min(job.time / duration, 1);
+
+            victim.action = t < 0.35 ? 'panic' : 'fall';
+
+            if (t > 0.4) {
+                victim.root.scale.setScalar(
+                    Math.max(0.015, 1 - (t - 0.4) / 0.45)
+                );
+            }
+
+            if (t >= 1) {
+                victim.action = 'idle';
+                victim.root.scale.setScalar(1);
+                victim.root.rotation.set(0, 0, 0);
+                place(victim.root, home);
+                job.penaltyDone = true;
+                job.captureStarted = false;
+                job.stage = 'finish';
+                job.time = 0;
+                setEffect(null);
+                focus.current = null;
             }
 
             return;
         }
 
         job.time += delta;
+
+        if (job.move.penalty && !job.penaltyDone) {
+            job.stage = 'penalty';
+            job.time = 0;
+            job.captureStarted = false;
+            return;
+        }
 
         if (job.time >= 0.15) {
             if (job.move.pieceHome) {
@@ -303,6 +442,7 @@ export function AnimationDirector({
             const resolve = job.resolve;
             jobRef.current = null;
             setEffect(null);
+                focus.current = null;
             resolve();
         }
     });

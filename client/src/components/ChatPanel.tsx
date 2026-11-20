@@ -24,8 +24,8 @@ export function ChatPanel({ playerCount, className = '' }: { playerCount: number
   };
 
   return (
-    <section className={`flex min-h-0 flex-col rounded-3xl bg-white p-4 shadow-sm ${className}`}>
-      <h2 className="mb-2 font-black">Chat</h2>
+    <section className={`panel flex min-h-0 flex-col p-4 ${className}`}>
+      <h2 className="panel-title mb-2">Chat</h2>
 
       <div
         ref={listRef}
@@ -33,11 +33,11 @@ export function ChatPanel({ playerCount, className = '' }: { playerCount: number
           const el = e.currentTarget;
           stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
-        className="min-h-[8rem] flex-1 space-y-1.5 overflow-y-auto pr-1 text-sm"
+        className="min-h-[8rem] flex-1 space-y-1.5 overflow-y-auto pr-1 text-sm font-bold"
       >
         {chat.map((m) =>
           m.type === 'system' ? (
-            <p key={m.id} className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">
+            <p key={m.id} className="rounded-lg bg-[var(--paper-2)] px-2 py-1 text-xs font-extrabold text-[var(--ink-soft)]">
               {m.text}
             </p>
           ) : (
@@ -68,11 +68,11 @@ export function ChatPanel({ playerCount, className = '' }: { playerCount: number
           onChange={(e) => setText(e.target.value)}
           placeholder="Say something…"
           aria-label="Chat message"
-          className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-amber-400"
+          className="field min-w-0 flex-1 !py-1.5 text-sm"
         />
         <button
           aria-label="Send message"
-          className="rounded-xl bg-[#ffbd43] px-3 text-[#263640] hover:bg-[#ffd06d]"
+          className="btn btn-small !px-3"
         >
           <Send size={16} />
         </button>

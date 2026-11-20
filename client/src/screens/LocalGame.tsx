@@ -2,26 +2,16 @@
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
 
 import {
-  ArrowRight,
-  Camera,
-  CheckCircle2,
-  Focus,
-  Minus,
-  Plus,
-  RotateCcw,
-  Route,
-  Trophy,
-} from 'lucide-react';
-
-import {
+  DIFFICULTY_INFO,
   applyMove,
+  capturingMoves,
   createArenaGame,
+  type Difficulty,
   finalRanking,
   isGameOver,
   seatsInPlay,
@@ -38,7 +28,11 @@ import {
 } from '../game/Board3D';
 
 import { playerColor } from '../game/boardLayout';
-import { ROLL_MS, RollingDice } from '../components/RollingDice';
+import { ROLL_MS } from '../components/RollingDice';
+import { GameStage } from '../components/GameStage';
+import { TurnDock } from '../components/TurnDock';
+import { RulesCard } from '../components/RulesCard';
+import { DifficultyPicker } from '../components/DifficultyPicker';
 
 
 type GamePhase =
@@ -48,6 +42,8 @@ type GamePhase =
   | 'ANIMATING'
   | 'PAUSING'
   | 'FINISHED';
+
+const COLOR_NAMES = ['Red', 'Blue', 'Yellow', 'Green'];
 
 const RANDOM_LIMIT = 0x100000000;
 
@@ -86,14 +82,13 @@ export function LocalGame({
   const [forcedDice, setForcedDice] = useState<number | null>(null);
   const [rolling, setRolling] = useState(false);
 
-  const nameOf = useCallback(
-    (seat: number) =>
-      `Player ${Math.max(0, seatsRef.current.indexOf(seat)) + 1}`,
-    []
-  );
+  const nameOf = useCallback((seat: number) => COLOR_NAMES[seat] ?? `Player ${seat + 1}`, []);
 
   const [playerCount, setPlayerCount] =
     useState(4);
+
+  const [difficulty, setDifficulty] =
+    useState<Difficulty>('MEDIUM');
 
   const [piecesPerPlayer, setPiecesPerPlayer] =
     useState<1 | 2 | 4>(4);
@@ -114,12 +109,6 @@ export function LocalGame({
     useState<number[]>([]);
 
   const [showRoutes, setShowRoutes] =
-    useState(true);
-
-  const [selectedView, setSelectedView] =
-    useState(0);
-
-  const [autoRotate, setAutoRotate] =
     useState(true);
 
   const [activity, setActivity] =
@@ -145,25 +134,14 @@ export function LocalGame({
       null
     );
 
-  const previewGame = useMemo(
-    () => createArenaGame(playerCount, piecesPerPlayer).game,
-    [playerCount, piecesPerPlayer]
-  );
+  const visibleGame = game;
 
-  const visibleGame = game ?? previewGame;
-
-  const seatLabels = Object.fromEntries(
-    seatsInPlay(visibleGame).map(seat => [
-      seat,
-      nameOf(seat).replace('Player ', 'P'),
-    ])
-  );
+  const seatLabels: Record<number, string> = game
+    ? Object.fromEntries(seatsInPlay(game).map(seat => [seat, nameOf(seat)]))
+    : {};
   const activeSeat = game?.turnSeat ?? 0;
 
-  const viewSeat =
-    autoRotate && game && phase !== 'FINISHED'
-      ? activeSeat
-      : selectedView;
+  const viewSeat = activeSeat;
 
   const log = useCallback(
     (message: string) => {
@@ -213,7 +191,8 @@ export function LocalGame({
 
     const arena = createArenaGame(
       playerCount,
-      piecesPerPlayer
+      piecesPerPlayer,
+      difficulty
     );
 
     const settings = arena.settings;
@@ -229,8 +208,8 @@ export function LocalGame({
     setPhase('ROLL');
 
     setActivity([
-      `${playerCount} players joined the arena.`,
-      `${nameOf(0)} rolls first.`,
+      `${playerCount} players, ${DIFFICULTY_INFO[difficulty].label} mode.`,
+      `${nameOf(arena.seats[0]!)} rolls first.`,
     ]);
 
     boardRef.current?.resetView();
@@ -266,8 +245,33 @@ export function LocalGame({
     setRanking([]);
     setPhase('ROLL');
     setActivity([
-      `Capture test (${style}): roll, then pick the glowing character. Player 1 captures Player 2.`,
+      `Capture test (${style}): roll, then pick the glowing character. Red captures Yellow.`,
     ]);
+    boardRef.current?.resetView();
+  };
+
+  /** Test helper: Hard mode, Red can capture Yellow but also has another move. */
+  const startPenaltyDemo = () => {
+    clearTimer();
+    busyRef.current = false;
+
+    const arena = createArenaGame(2, 2, 'HARD');
+    const progress: Record<string, number> = { 's0-p0': 10, 's0-p1': 30, 's2-p0': 38, 's2-p1': 30 };
+    const next: GameState = {
+      ...arena.game,
+      pieces: arena.game.pieces.map(piece => ({ ...piece, progress: progress[piece.id] ?? -1 })),
+    };
+
+    seatsRef.current = arena.seats;
+    settingsRef.current = arena.settings;
+    forcedDiceRef.current = 2;
+    setForcedDice(2);
+    updateGame(next);
+    updateLegal([]);
+    setDice(null);
+    setRanking([]);
+    setPhase('ROLL');
+    setActivity(['Hard rule test: Red can capture with one character. Move the OTHER one and see what happens.']);
     boardRef.current?.resetView();
   };
 
@@ -316,9 +320,7 @@ export function LocalGame({
     setRanking([]);
     setPhase('SETUP');
 
-    setActivity([
-      'Choose your game settings.',
-    ]);
+    setActivity([]);
   };
 
   const rollDice = () => {
@@ -406,6 +408,15 @@ export function LocalGame({
       setPhase('CHOOSE');
 
       busyRef.current = false;
+
+      // Only one possible move: play it for the player after a short beat.
+      if (result.validPieceIds.length === 1) {
+        const only = result.validPieceIds[0]!;
+        timerRef.current = setTimeout(() => {
+          timerRef.current = null;
+          if (mountedRef.current) void choosePieceRef.current(only);
+        }, 800);
+      }
     } catch (error) {
       console.error(error);
       log('Dice roll failed.');
@@ -480,6 +491,8 @@ export function LocalGame({
     [log, updateGame, updateLegal]
   );
 
+  const choosePieceRef = useRef<(id: string) => Promise<void>>(async () => undefined);
+
   const choosePiece = useCallback(
     async (pieceId: string) => {
       if (busyRef.current) return;
@@ -545,6 +558,7 @@ export function LocalGame({
     },
     [finishMove, log, updateLegal]
   );
+  choosePieceRef.current = choosePiece;
 
   const homeCount = (seat: number) => {
     if (!game) return 0;
@@ -557,512 +571,221 @@ export function LocalGame({
     ).length;
   };
 
-  const instruction =
-    phase === 'SETUP'
-      ? 'Choose players and your preferred home view.'
-      : phase === 'ROLL'
-        ? 'Roll the dice to start your move.'
-        : phase === 'CHOOSE'
-          ? 'Select one of the glowing characters.'
-          : phase === 'ANIMATING'
-            ? 'Watch the character animation.'
-            : phase === 'PAUSING'
-              ? 'Passing to the next player...'
-              : 'Final rankings are ready.';
+  const settings = settingsRef.current;
+  const captureIds =
+    game && settings && phase === 'CHOOSE' && game.dice !== null
+      ? capturingMoves(game, settings)
+      : [];
+  const warnHard =
+    settings?.missedCapturePenalty && captureIds.length > 0
+      ? captureIds.length === legalIds.length && legalIds.length === 1
+        ? null
+        : 'Hard rule: you can capture! If you move another character, your capturing character goes home.'
+      : null;
+
+  const hint =
+    phase === 'ROLL'
+      ? 'Press ROLL'
+      : phase === 'CHOOSE'
+        ? legalIds.length > 1
+          ? `Tap one of the glowing characters to move ${dice} steps`
+          : `Moving ${dice} steps…`
+        : phase === 'ANIMATING'
+          ? 'Watch the move'
+          : phase === 'PAUSING'
+            ? 'No move possible, next player'
+            : '';
+
+  /* ------------------------------ setup screen ------------------------------ */
+  if (phase === 'SETUP' || !game) {
+    return (
+      <div className="table-bg fixed inset-0 z-30 overflow-y-auto">
+        <div className="mx-auto max-w-4xl px-4 py-8">
+          <div className="mb-5 flex items-center justify-between">
+            <h1 className="font-title text-4xl text-[var(--paper)] drop-shadow-[0_3px_0_var(--ink)]">New game</h1>
+            <button onClick={onExit} className="btn btn-paper btn-small">Back</button>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-[1fr_1.2fr]">
+            <section className="panel space-y-5 p-5">
+              <div>
+                <p className="label">Players on this device</p>
+                <div className="mt-2 flex gap-2">
+                  {[2, 3, 4].map(n => (
+                    <button key={n} aria-pressed={playerCount === n} onClick={() => setPlayerCount(n)} className="chip flex-1 text-xl">
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="label">Characters each</p>
+                <div className="mt-2 flex gap-2">
+                  {([1, 2, 4] as const).map(n => (
+                    <button key={n} aria-pressed={piecesPerPlayer === n} onClick={() => setPiecesPerPlayer(n)} className="chip flex-1 text-xl">
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs font-bold text-[var(--ink-soft)]">1 = quick game, 4 = classic</p>
+              </div>
+
+              <button onClick={startGame} className="btn btn-red w-full !py-4 text-2xl">Start game</button>
+            </section>
+
+            <section className="panel p-5">
+              <p className="label">Difficulty</p>
+              <div className="mt-2">
+                <DifficultyPicker value={difficulty} onChange={setDifficulty} />
+              </div>
+            </section>
+
+            <section className="panel p-5 md:col-span-2">
+              <p className="panel-title">Test lab</p>
+              <p className="text-sm font-bold text-[var(--ink-soft)]">Skip the long game: jump straight into a scene.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('GUN')}>Gun capture</button>
+                <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('SLAP')}>Slap capture</button>
+                <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('DOG')}>Dog capture</button>
+                <button className="btn btn-paper btn-small" onClick={startPenaltyDemo}>Hard-mode penalty</button>
+                <button className="btn btn-paper btn-small" onClick={startHomeDemo}>Home stretch</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ------------------------------- game screen ------------------------------- */
+  const dock =
+    phase === 'FINISHED' ? undefined : (
+      <TurnDock
+        color={playerColor(activeSeat, game.N)}
+        who={`${nameOf(activeSeat)}'s turn`}
+        hint={hint}
+        warn={warnHard}
+        dice={dice}
+        rolling={rolling}
+        canRoll={phase === 'ROLL'}
+        onRoll={rollDice}
+      />
+    );
+
+  const side = (
+    <>
+      {phase === 'FINISHED' && (
+        <section className="panel p-4">
+          <p className="panel-title">Game over</p>
+          <ol className="mt-2 space-y-1.5">
+            {ranking.map((seat, i) => (
+              <li key={seat} className="flex items-center gap-2 font-extrabold">
+                <span className="w-6 text-[var(--ink-soft)]">{i + 1}.</span>
+                <span className="h-4 w-4 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: playerColor(seat, game.N) }} />
+                {nameOf(seat)}
+              </li>
+            ))}
+          </ol>
+          <div className="mt-4 flex gap-2">
+            <button onClick={restart} className="btn btn-red flex-1">New game</button>
+            <button onClick={onExit} className="btn btn-paper flex-1">Menu</button>
+          </div>
+        </section>
+      )}
+
+      {phase === 'CHOOSE' && legalIds.length > 1 && (
+        <section className="panel p-4">
+          <p className="panel-title mb-2">Or pick here</p>
+          <div className="flex flex-wrap gap-2">
+            {legalIds.map(id => (
+              <button key={id} onClick={() => choosePiece(id)} className="btn btn-small">
+                Move character {Number(id.split('-p')[1] ?? 0) + 1}
+                {captureIds.includes(id) ? ' (captures!)' : ''}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="panel p-4">
+        <p className="panel-title mb-2">Players</p>
+        <ul className="space-y-1.5">
+          {seatsInPlay(game).map(seat => (
+            <li
+              key={seat}
+              className={`flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 font-extrabold ${seat === activeSeat && phase !== 'FINISHED' ? 'border-[var(--ink)] bg-[var(--yellow)]' : 'border-transparent'}`}
+            >
+              <span className="h-4 w-4 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: playerColor(seat, game.N) }} />
+              {nameOf(seat)}
+              <span className="ml-auto text-sm text-[var(--ink-soft)]">
+                {homeCount(seat)}/{settings?.piecesPerPlayer ?? 4} home
+              </span>
+            </li>
+          ))}
+        </ul>
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
+          <input type="checkbox" checked={showRoutes} onChange={e => setShowRoutes(e.target.checked)} className="h-4 w-4 accent-[var(--red)]" />
+          Show where the character will land
+        </label>
+      </section>
+
+      <section className="panel p-4">
+        <p className="panel-title mb-2">What happened</p>
+        <div className="max-h-44 space-y-1 overflow-y-auto text-sm font-bold">
+          {activity.map((m, i) => (
+            <p key={`${i}-${m}`} className={i === 0 ? '' : 'text-[var(--ink-soft)]'}>{m}</p>
+          ))}
+        </div>
+      </section>
+
+      <RulesCard difficulty={settings?.difficulty ?? 'MEDIUM'} />
+
+      <details className="panel p-4">
+        <summary className="panel-title cursor-pointer">Test lab</summary>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('GUN')}>Gun</button>
+          <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('SLAP')}>Slap</button>
+          <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('DOG')}>Dog</button>
+          <button className="btn btn-paper btn-small" onClick={startPenaltyDemo}>Hard penalty</button>
+        </div>
+        <p className="label mt-3">Force the next dice</p>
+        <div className="mt-1 grid grid-cols-6 gap-1.5">
+          {[1, 2, 3, 4, 5, 6].map(n => (
+            <button key={n} aria-pressed={forcedDice === n} onClick={() => forceDice(forcedDice === n ? null : n)} className="chip !px-0 !py-1 text-center">
+              {n}
+            </button>
+          ))}
+        </div>
+      </details>
+
+      <div className="flex gap-2">
+        <button onClick={restart} className="btn btn-paper btn-small flex-1">Restart</button>
+        <button onClick={onExit} className="btn btn-paper btn-small flex-1">Leave</button>
+      </div>
+    </>
+  );
 
   return (
-    <div>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_335px]">
-          <section className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <span
-                  className="h-5 w-5 rounded-full border-2 border-white shadow"
-                  style={{
-                    backgroundColor: playerColor(
-                      activeSeat,
-                      visibleGame.N
-                    ),
-                  }}
-                />
-
-                <div>
-                  <h2 className="text-lg font-black">
-                    {phase === 'SETUP'
-                      ? 'Explore the arena'
-                      : phase === 'FINISHED'
-                        ? 'Game complete'
-                        : `${nameOf(activeSeat)}'s turn`}
-                  </h2>
-
-                  <p className="text-sm text-[#71828c]">
-                    {instruction}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  aria-label="Zoom out"
-                  onClick={() =>
-                    boardRef.current?.zoomOut()
-                  }
-                  className="rounded-xl bg-[#edf4f3] p-2"
-                >
-                  <Minus size={18} />
-                </button>
-
-                <button
-                  aria-label="Zoom in"
-                  onClick={() =>
-                    boardRef.current?.zoomIn()
-                  }
-                  className="rounded-xl bg-[#edf4f3] p-2"
-                >
-                  <Plus size={18} />
-                </button>
-
-                <button
-                  aria-label="Reset camera"
-                  onClick={() =>
-                    boardRef.current?.resetView()
-                  }
-                  className="rounded-xl bg-[#edf4f3] p-2"
-                >
-                  <Focus size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-3xl border-4 border-white bg-white p-1 shadow-xl">
-              <Board3D
-                ref={boardRef}
-                game={visibleGame}
-                seatLabels={seatLabels}
-                validPieceIds={legalIds}
-                onPieceClick={choosePiece}
-                showRoutes={showRoutes}
-                viewSeat={viewSeat}
-                starsPerSegment={
-                  settingsRef.current?.starTilesPerSegment ??
-                  1
-                }
-              />
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-[#607987]">
-              <p>
-                {visibleGame.L} track tiles ·{' '}
-                {seatsInPlay(visibleGame).length} players · Clockwise
-              </p>
-
-              <label className="flex cursor-pointer items-center gap-2 font-semibold">
-                <Route size={15} />
-                Show move paths
-
-                <input
-                  type="checkbox"
-                  checked={showRoutes}
-                  onChange={event =>
-                    setShowRoutes(
-                      event.target.checked
-                    )
-                  }
-                  className="accent-emerald-600"
-                />
-              </label>
-            </div>
-
-            {game && (
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-3">
-                {seatsInPlay(game).map(
-                  (seat) => (
-                    <div
-                      key={seat}
-                      className={`min-w-[120px] shrink-0 rounded-2xl border-2 p-3 ${seat === activeSeat &&
-                          phase !== 'FINISHED'
-                          ? 'border-amber-400 bg-amber-50'
-                          : 'border-white bg-white'
-                        }`}
-                    >
-                      <div className="flex items-center gap-2 font-bold">
-                        <span
-                          className="h-3 w-3 rounded-full"
-                          style={{
-                            backgroundColor: playerColor(
-                              seat,
-                              game.N
-                            ),
-                          }}
-                        />
-
-                        {nameOf(seat).replace("Player ", "P")}
-                      </div>
-
-                      <p className="mt-2 text-xs text-slate-500">
-                        {homeCount(seat)}/
-                        {settingsRef.current?.piecesPerPlayer ??
-                          4}{' '}
-                        finished
-                      </p>
-
-                      {game.ranking.includes(seat) && (
-                        <p className="mt-2 flex items-center gap-1 text-xs text-emerald-600">
-                          <CheckCircle2 size={13} />
-                          Finished
-                        </p>
-                      )}
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </section>
-
-          <aside className="space-y-4">
-            <section className="rounded-3xl bg-white p-5 shadow-sm">
-              <div className="mb-4 flex items-center gap-2 text-[#188e7d]">
-                <Camera size={18} />
-                <h2 className="font-black">
-                  Camera viewpoint
-                </h2>
-              </div>
-
-              <label
-                htmlFor="camera-seat"
-                className="text-sm font-semibold"
-              >
-                View from home
-              </label>
-
-              <select
-                id="camera-seat"
-                value={selectedView}
-                onChange={event => {
-                  setSelectedView(
-                    Number(event.target.value)
-                  );
-                  setAutoRotate(false);
-                }}
-                className="mt-2 w-full rounded-xl border border-[#d7e4e3] bg-[#f5faf8] p-3 text-sm"
-              >
-                {seatsInPlay(visibleGame).map(
-                  (seat) => (
-                    <option
-                      key={seat}
-                      value={seat}
-                    >
-                      {nameOf(seat)}'s home
-                    </option>
-                  )
-                )}
-              </select>
-
-              <label className="mt-4 flex cursor-pointer items-center gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={autoRotate}
-                  onChange={event =>
-                    setAutoRotate(
-                      event.target.checked
-                    )
-                  }
-                  className="accent-emerald-600"
-                />
-
-                Auto-rotate to active player
-              </label>
-
-              <p className="mt-2 text-xs text-slate-500">
-                Turn this off to keep the camera
-                on your selected home.
-              </p>
-            </section>
-
-            {phase === 'SETUP' ? (
-              <section className="rounded-3xl bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-black">
-                    One-device game
-                  </h2>
-
-                  <button
-                    onClick={onExit}
-                    className="text-xs font-bold text-slate-500 underline"
-                  >
-                    Menu
-                  </button>
-                </div>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  Four players use the classic board.
-                  Larger groups use a compact arena.
-                </p>
-
-                <label
-                  htmlFor="players"
-                  className="mt-6 flex justify-between text-sm font-semibold"
-                >
-                  Players
-                  <strong className="text-xl">
-                    {playerCount}
-                  </strong>
-                </label>
-
-                <input
-                  id="players"
-                  type="range"
-                  min="2"
-                  max="20"
-                  value={playerCount}
-                  onChange={event => {
-                    const value = Number(
-                      event.target.value
-                    );
-
-                    setPlayerCount(value);
-
-                    setSelectedView(old =>
-                      Math.min(old, value - 1)
-                    );
-
-                    setPiecesPerPlayer(
-                      value > 8 ? 1 : 4
-                    );
-                  }}
-                  className="mt-3 w-full accent-emerald-600"
-                />
-
-                <div className="mt-2 flex justify-between text-xs text-slate-500">
-                  <span>2</span>
-                  <span>20</span>
-                </div>
-
-                <p className="mb-3 mt-5 text-sm font-semibold">
-                  Characters per player
-                </p>
-
-                <div className="grid grid-cols-3 gap-2">
-                  {([1, 2, 4] as const).map(
-                    count => (
-                      <button
-                        key={count}
-                        onClick={() =>
-                          setPiecesPerPlayer(
-                            count
-                          )
-                        }
-                        className={`rounded-xl border-2 p-3 font-bold ${piecesPerPlayer === count
-                            ? 'border-emerald-500 bg-emerald-50'
-                            : 'border-slate-100 bg-slate-50'
-                          }`}
-                      >
-                        {count}
-                      </button>
-                    )
-                  )}
-                </div>
-
-                <div className="mt-4 rounded-xl bg-[#eff8f1] p-3 text-sm text-[#476c5f]">
-                  {visibleGame.L} shared track tiles
-                  across {seatsInPlay(visibleGame).length} players.
-                </div>
-
-                <button
-                  onClick={startGame}
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#21aa70] p-4 font-black text-white hover:bg-[#178859]"
-                >
-                  Start game
-                  <ArrowRight size={18} />
-                </button>
-              </section>
-            ) : (
-              <section className="rounded-3xl bg-white p-5 shadow-sm">
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                  Current turn
-                </p>
-
-                <h2 className="mt-1 text-2xl font-black">
-                  {phase === 'FINISHED'
-                    ? 'Game over!'
-                    : nameOf(activeSeat)}
-                </h2>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  {instruction}
-                </p>
-
-                <div className="my-8 flex justify-center">
-                  <RollingDice
-                    value={dice}
-                    rolling={rolling}
-                  />
-                </div>
-
-                {phase !== 'FINISHED' && (
-                  <button
-                    disabled={phase !== 'ROLL'}
-                    onClick={rollDice}
-                    className="w-full rounded-2xl bg-[#ffbd43] p-4 font-black text-[#263640] hover:bg-[#ffd06d] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {phase === 'ROLL'
-                      ? '🎲 Roll dice'
-                      : phase === 'CHOOSE'
-                        ? 'Choose a glowing character'
-                        : 'Please wait...'}
-                  </button>
-                )}
-
-                {phase === 'CHOOSE' && (
-                  <div className="mt-4">
-                    <p className="mb-2 text-sm font-semibold">
-                      Available characters
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                      {legalIds.map(id => (
-                        <button
-                          key={id}
-                          onClick={() =>
-                            choosePiece(id)
-                          }
-                          className="rounded-xl bg-emerald-100 px-4 py-2 text-sm font-bold text-emerald-800"
-                        >
-                          Character{' '}
-                          {Number(
-                            id.split('-p')[1]
-                          ) + 1}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  disabled={
-                    phase === 'ANIMATING' ||
-                    phase === 'PAUSING'
-                  }
-                  onClick={restart}
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 p-3 font-semibold disabled:opacity-40"
-                >
-                  <RotateCcw size={16} />
-                  New game
-                </button>
-
-                <button
-                  onClick={onExit}
-                  className="mt-2 w-full rounded-xl p-3 text-sm font-semibold text-slate-500 hover:bg-slate-50"
-                >
-                  Back to menu
-                </button>
-              </section>
-            )}
-
-            {phase === 'FINISHED' && (
-              <section className="rounded-3xl bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center gap-2 text-amber-600">
-                  <Trophy size={21} />
-                  <h2 className="font-black">
-                    Final rankings
-                  </h2>
-                </div>
-
-                {ranking.map((seat, index) => (
-                  <div
-                    key={seat}
-                    className="mb-2 flex justify-between rounded-xl bg-slate-50 p-3 text-sm"
-                  >
-                    <span>
-                      #{index + 1} · {nameOf(seat)}
-                    </span>
-
-                    {index === 0 && (
-                      <span>🏆</span>
-                    )}
-                  </div>
-                ))}
-              </section>
-            )}
-
-            <section className="rounded-3xl bg-white p-5 shadow-sm">
-              <h2 className="mb-3 font-black">
-                Game activity
-              </h2>
-
-              <div className="max-h-48 space-y-2 overflow-y-auto">
-                {activity.map(
-                  (message, index) => (
-                    <p
-                      key={`${index}-${message}`}
-                      className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600"
-                    >
-                      {message}
-                    </p>
-                  )
-                )}
-              </div>
-            </section>
-
-
-            <section className="rounded-3xl border-2 border-dashed border-violet-300 bg-violet-50 p-5">
-              <h2 className="font-black text-violet-900">
-                Test tools
-              </h2>
-              <p className="mt-1 text-xs text-violet-800">
-                Skip the long game and see a capture scene right away.
-              </p>
-
-              <p className="mt-3 text-sm font-semibold">
-                Capture scene in one roll
-              </p>
-              <div className="mt-1 grid grid-cols-3 gap-2">
-                {(
-                  [
-                    ['GUN', '🔫 Gun'],
-                    ['SLAP', '👋 Slap'],
-                    ['DOG', '🐕 Dog'],
-                  ] as const
-                ).map(([style, label]) => (
-                  <button
-                    key={style}
-                    onClick={() => startCaptureDemo(style)}
-                    className="rounded-xl bg-white p-2 text-sm font-bold shadow-sm hover:bg-violet-100"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={startHomeDemo}
-                className="mt-3 w-full rounded-xl bg-white p-2 text-sm font-bold shadow-sm hover:bg-violet-100"
-              >
-                🏁 Home stretch (4 players near home)
-              </button>
-
-              <p className="mt-3 text-sm font-semibold">
-                Force the next dice
-              </p>
-              <div className="mt-1 grid grid-cols-6 gap-1.5">
-                {[1, 2, 3, 4, 5, 6].map(n => (
-                  <button
-                    key={n}
-                    onClick={() =>
-                      forceDice(forcedDice === n ? null : n)
-                    }
-                    className={`rounded-lg p-2 text-sm font-black ${forcedDice === n
-                      ? 'bg-violet-600 text-white'
-                      : 'bg-white shadow-sm'
-                      }`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </section>
-          </aside>
-        </div>
-    </div>
+    <GameStage
+      color={playerColor(activeSeat, game.N)}
+      title={phase === 'FINISHED' ? 'Game over' : `${nameOf(activeSeat)}'s turn`}
+      subtitle={`${DIFFICULTY_INFO[settings?.difficulty ?? 'MEDIUM'].label} mode`}
+      board={
+        <Board3D
+          ref={boardRef}
+          game={visibleGame!}
+          seatLabels={seatLabels}
+          validPieceIds={legalIds}
+          onPieceClick={choosePiece}
+          showRoutes={showRoutes}
+          viewSeat={viewSeat}
+          starsPerSegment={settings?.starTilesPerSegment ?? 1}
+        />
+      }
+      dock={dock}
+      side={side}
+      sideLabel="Players & rules"
+    />
   );
 }

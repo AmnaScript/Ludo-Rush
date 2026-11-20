@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, Focus, LogOut, Minus, Plus, Trophy, WifiOff } from 'lucide-react';
-import type { GameState, TurnInfo } from '@ludo-rush/shared';
+import { Bot, WifiOff } from 'lucide-react';
+import { DIFFICULTY_INFO, arenaSettings, capturingMoves, type GameState, type TurnInfo } from '@ludo-rush/shared';
 import { Board3D, type Board3DHandle } from '../game/Board3D';
 import { playerColor } from '../game/boardLayout';
+import { GameStage } from '../components/GameStage';
+import { RulesCard } from '../components/RulesCard';
 import { ChatPanel } from '../components/ChatPanel';
 import { play } from '../audio/sfx';
-import { ROLL_MS, RollingDice } from '../components/RollingDice';
+import { ROLL_MS } from '../components/RollingDice';
+import { TurnDock } from '../components/TurnDock';
 import { leaveRoom } from '../net/session';
 import { socket } from '../net/socket';
 import { useRoomStore } from '../store/roomStore';
@@ -151,171 +154,140 @@ export function OnlineGame() {
     game.pieces.filter((p) => p.ownerSeat === seat && p.progress === game.L + game.H).length;
   const perPlayer = game.pieces.length / Math.max(1, players.length);
 
-  const status = finished
-    ? 'Game complete'
+  const difficulty = snapshot.options.difficulty ?? 'MEDIUM';
+  const settings = useMemo(
+    () => arenaSettings(players.length, 4, difficulty),
+    [players.length, difficulty],
+  );
+  const captureIds =
+    myTurn && game.dice !== null && validIds.length > 0 && !animating ? capturingMoves(game, settings) : [];
+  const warnHard =
+    settings.missedCapturePenalty && captureIds.length > 0 && validIds.length > 1
+      ? 'Hard rule: you can capture! If you move another character, your capturing character goes home.'
+      : null;
+
+  const hint = finished
+    ? ''
     : spectator
-      ? `Watching: ${nameOfSeat(activeSeat)}'s turn`
+      ? `You are watching ${nameOfSeat(activeSeat)}`
       : myTurn
         ? animating
-          ? 'Watch your move…'
+          ? 'Watch your move'
           : mustChoose
-            ? 'Pick a glowing character'
+            ? `Tap one of the glowing characters to move ${dice} steps`
             : canRoll
-              ? 'Your turn: roll the dice!'
+              ? 'Press ROLL'
               : 'Rolling…'
-        : `${nameOfSeat(activeSeat)}'s turn`;
+        : `Waiting for ${nameOfSeat(activeSeat)}`;
+
+  const dock = finished ? undefined : (
+    <TurnDock
+      color={playerColor(activeSeat, N)}
+      who={myTurn ? 'YOUR TURN' : `${nameOfSeat(activeSeat)}'s turn`}
+      hint={hint}
+      warn={warnHard}
+      dice={dice}
+      rolling={rolling}
+      canRoll={canRoll}
+      onRoll={roll}
+      yourTurn={myTurn}
+      secondsLeft={myTurn ? secondsLeft : null}
+    />
+  );
+
+  const side = (
+    <>
+      {finished && (
+        <section className="panel p-4">
+          <p className="panel-title">Results</p>
+          <ol className="mt-2 space-y-1.5">
+            {game.ranking.map((seat, i) => (
+              <li key={seat} className="flex items-center gap-2 font-extrabold">
+                <span className="w-6 text-[var(--ink-soft)]">{i + 1}.</span>
+                <span className="h-4 w-4 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: playerColor(seat, N) }} />
+                {nameOfSeat(seat)}
+              </li>
+            ))}
+          </ol>
+          {isHost ? (
+            <button onClick={() => socket.emit('game:rematch')} className="btn btn-red mt-4 w-full">
+              Play again
+            </button>
+          ) : (
+            <p className="mt-3 text-sm font-bold text-[var(--ink-soft)]">Waiting for the host to start another round.</p>
+          )}
+        </section>
+      )}
+
+      {error && (
+        <p role="alert" className="panel bg-[var(--red)] p-3 text-sm font-extrabold text-white">
+          {error}
+        </p>
+      )}
+
+      <section className="panel p-4">
+        <p className="panel-title mb-2">Players</p>
+        <ul className="space-y-1.5">
+          {players.map((p) => (
+            <li
+              key={p.id}
+              className={`flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 font-extrabold ${p.seat === activeSeat && !finished ? 'border-[var(--ink)] bg-[var(--yellow)]' : 'border-transparent'}`}
+            >
+              <span className="h-4 w-4 shrink-0 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: playerColor(p.seat!, N) }} />
+              <button
+                onClick={() => {
+                  setFollow(false);
+                  setView(p.seat!);
+                }}
+                className="truncate text-left"
+                title="View from this home"
+              >
+                {p.nickname}
+                {p.id === session.playerId && <span className="text-[var(--ink-soft)]"> (you)</span>}
+              </button>
+              {p.isBot && <Bot size={14} className="shrink-0" aria-label="Bot" />}
+              {!p.connected && !p.isBot && <WifiOff size={14} className="shrink-0 text-[var(--red)]" aria-label="Offline" />}
+              <span className="ml-auto shrink-0 text-sm text-[var(--ink-soft)]">
+                {game.ranking.includes(p.seat!) ? `#${game.ranking.indexOf(p.seat!) + 1}` : `${homeCount(p.seat!)}/${perPlayer} home`}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
+          <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} className="h-4 w-4 accent-[var(--red)]" />
+          Camera follows whose turn it is
+        </label>
+      </section>
+
+      <RulesCard difficulty={difficulty} />
+
+      <ChatPanel playerCount={N} className="h-72" />
+
+      <button onClick={leaveRoom} className="btn btn-paper btn-small w-full">
+        Leave room
+      </button>
+    </>
+  );
 
   return (
-    <div className="pb-28 lg:pb-0">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <section className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <span
-                className="h-5 w-5 rounded-full border-2 border-white shadow"
-                style={{ backgroundColor: playerColor(activeSeat, N) }}
-              />
-              <div>
-                <h2 className="text-lg font-black">{status}</h2>
-                <p className="text-sm text-[#71828c]">
-                  {secondsLeft !== null && !finished ? `${secondsLeft}s left before auto-play` : `Room ${snapshot.code}`}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button aria-label="Zoom out" onClick={() => boardRef.current?.zoomOut()} className="rounded-xl bg-[#edf4f3] p-2">
-                <Minus size={18} />
-              </button>
-              <button aria-label="Zoom in" onClick={() => boardRef.current?.zoomIn()} className="rounded-xl bg-[#edf4f3] p-2">
-                <Plus size={18} />
-              </button>
-              <button aria-label="Reset camera" onClick={() => boardRef.current?.resetView()} className="rounded-xl bg-[#edf4f3] p-2">
-                <Focus size={18} />
-              </button>
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-3xl border-4 border-white bg-white p-1 shadow-xl">
-            <Board3D
-              ref={boardRef}
-              game={game}
-              validPieceIds={mustChoose ? validIds : []}
-              onPieceClick={choose}
-              showRoutes
-              viewSeat={viewSeat}
-              seatLabels={seatLabels}
-            />
-          </div>
-
-          <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs font-semibold text-[#607987]">
-            <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} />
-            Camera follows the active player
-          </label>
-        </section>
-
-        <aside className="space-y-4">
-          {finished ? (
-            <section className="rounded-3xl bg-white p-5 shadow-sm">
-              <h2 className="flex items-center gap-2 text-xl font-black">
-                <Trophy size={20} className="text-amber-500" /> Results
-              </h2>
-              <ol className="mt-3 space-y-1.5">
-                {game.ranking.map((seat, i) => (
-                  <li key={seat} className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold">
-                    <span className="w-6 text-slate-400">{i + 1}.</span>
-                    <span className="h-3 w-3 rounded-full" style={{ backgroundColor: playerColor(seat, N) }} />
-                    {nameOfSeat(seat)}
-                  </li>
-                ))}
-              </ol>
-              {isHost ? (
-                <button
-                  onClick={() => socket.emit('game:rematch')}
-                  className="mt-4 w-full rounded-2xl bg-[#ffbd43] p-4 font-black text-[#263640] hover:bg-[#ffd06d]"
-                >
-                  Play again
-                </button>
-              ) : (
-                <p className="mt-3 text-xs text-slate-500">Waiting for the host to start another round.</p>
-              )}
-            </section>
-          ) : (
-            <section className="hidden rounded-3xl bg-white p-5 shadow-sm lg:block">
-              <div className="flex justify-center">
-                <RollingDice value={dice} rolling={rolling} />
-              </div>
-              <button
-                disabled={!canRoll}
-                onClick={roll}
-                className="mt-4 w-full rounded-2xl bg-[#ffbd43] p-4 font-black text-[#263640] hover:bg-[#ffd06d] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {canRoll ? '🎲 Roll dice' : mustChoose ? 'Choose a glowing character' : spectator ? 'Spectating' : 'Please wait…'}
-              </button>
-            </section>
-          )}
-
-          {error && (
-            <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm font-semibold text-rose-800">
-              {error}
-            </p>
-          )}
-
-          <section className="rounded-3xl bg-white p-4 shadow-sm">
-            <h2 className="mb-2 font-black">Players</h2>
-            <ul className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
-              {players.map((p) => (
-                <li
-                  key={p.id}
-                  className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm ${p.seat === activeSeat && !finished ? 'bg-amber-50 ring-2 ring-amber-300' : 'bg-slate-50'}`}
-                >
-                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: playerColor(p.seat!, N) }} />
-                  <button
-                    onClick={() => {
-                      setFollow(false);
-                      setView(p.seat!);
-                    }}
-                    className="truncate text-left font-semibold"
-                    title="View from this home"
-                  >
-                    {p.nickname}
-                    {p.id === session.playerId && <span className="text-slate-400"> (you)</span>}
-                  </button>
-                  {p.isBot && <Bot size={14} className="shrink-0 text-slate-400" aria-label="Bot" />}
-                  {!p.connected && !p.isBot && <WifiOff size={14} className="shrink-0 text-rose-500" aria-label="Offline" />}
-                  <span className="ml-auto shrink-0 text-xs text-slate-500">
-                    {game.ranking.includes(p.seat!) ? `#${game.ranking.indexOf(p.seat!) + 1}` : `${homeCount(p.seat!)}/${perPlayer}`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <ChatPanel playerCount={N} className="h-80" />
-
-          <button
-            onClick={leaveRoom}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold"
-          >
-            <LogOut size={16} /> Leave room
-          </button>
-        </aside>
-      </div>
-
-      {!finished && (
-        <div className="fixed inset-x-0 bottom-0 z-20 flex items-center gap-3 border-t border-amber-200 bg-white/95 p-3 shadow-2xl backdrop-blur lg:hidden">
-          <div className="scale-[0.6] origin-left -mr-8 -my-6">
-            <RollingDice value={dice} rolling={rolling} />
-          </div>
-          <button
-            disabled={!canRoll}
-            onClick={roll}
-            className="flex-1 rounded-2xl bg-[#ffbd43] p-4 font-black text-[#263640] disabled:opacity-50"
-          >
-            {canRoll ? '🎲 Roll' : mustChoose ? 'Tap a glowing character' : spectator ? 'Spectating' : status}
-          </button>
-        </div>
-      )}
-    </div>
+    <GameStage
+      color={playerColor(activeSeat, N)}
+      title={finished ? 'Game over' : myTurn ? 'Your turn' : `${nameOfSeat(activeSeat)}'s turn`}
+      subtitle={`Room ${snapshot.code} · ${DIFFICULTY_INFO[difficulty].label}`}
+      board={
+        <Board3D
+          ref={boardRef}
+          game={game}
+          validPieceIds={mustChoose ? validIds : []}
+          onPieceClick={choose}
+          showRoutes
+          viewSeat={viewSeat}
+          seatLabels={seatLabels}
+          starsPerSegment={settings.starTilesPerSegment}
+        />
+      }
+      dock={dock}
+      side={side}
+    />
   );
 }
