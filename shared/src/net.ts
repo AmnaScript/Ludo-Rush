@@ -1,22 +1,24 @@
 /** Wire contract shared by server and client (rooms, lobby, game sync, chat). */
-import type { GameState, MoveResult } from './gameTypes';
+import type { Difficulty, GameState, MoveResult } from './gameTypes';
 
 export type RoomPhase = 'LOBBY' | 'PLAYING' | 'FINISHED';
 
 export interface RoomOptions {
     piecesPerPlayer: 1 | 2 | 4;
+    difficulty: Difficulty;
     /** Seconds a player has to roll and to move before auto-play kicks in. */
     turnSeconds: number;
 }
 
 export const DEFAULT_ROOM_OPTIONS: Readonly<RoomOptions> = {
     piecesPerPlayer: 4,
+    difficulty: 'MEDIUM',
     turnSeconds: 20,
 };
 
 export const ROOM_LIMITS = {
-    /** Soft cap that protects the server; there is no rule-level player limit. */
-    maxPlayers: 32,
+    /** Classic Ludo: two to four players per room. */
+    maxPlayers: 4,
     minPlayersToStart: 2,
     maxChatLength: 200,
     chatHistory: 100,

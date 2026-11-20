@@ -15,7 +15,8 @@ export function chooseBotMove(
         const score =
             result.captures.length * 1000 +
             (result.pieceHome ? 600 : 0) +
-            (result.from === -1 ? 300 : 0) +
+            (result.from === -1 ? 300 : 0) -
+            (result.penalty ? 2000 : 0) +
             result.to;
 
         if (score > bestScore) {

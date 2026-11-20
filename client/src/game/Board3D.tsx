@@ -22,18 +22,14 @@ export const Board3D = forwardRef<
     const cameraActions =
         useRef<CameraActions['current']>(null);
 
+    const focus = useRef<THREE.Vector3 | null>(null);
+
     const [effect, setEffect] =
         useState<FXState | null>(null);
 
     useImperativeHandle(
         ref,
         () => ({
-            zoomIn: () =>
-                cameraActions.current?.zoomIn(),
-
-            zoomOut: () =>
-                cameraActions.current?.zoomOut(),
-
             resetView: () =>
                 cameraActions.current?.resetView(),
 
@@ -73,7 +69,7 @@ export const Board3D = forwardRef<
     }, []);
 
     return (
-        <div className="relative h-[490px] w-full overflow-hidden rounded-2xl bg-[#69cfff] sm:h-[630px] lg:h-[740px]">
+        <div className="relative h-full w-full overflow-hidden bg-[#2d1d12]">
             <Canvas
                 shadows
                 dpr={[1, 1.5]}
@@ -96,25 +92,35 @@ export const Board3D = forwardRef<
                     cameraActions={cameraActions}
                     effect={effect}
                     setEffect={setEffect}
+                    focus={focus}
                 />
             </Canvas>
 
-            {effect && (
-                <div
-                    aria-live="polite"
-                    className="pointer-events-none absolute left-1/2 top-5 -translate-x-1/2 rounded-2xl border-4 border-white bg-[#ffcc32] px-6 py-3 text-2xl font-black text-[#253747] shadow-2xl"
-                >
-                    {effect.style === 'SLAP'
-                        ? '💥 SLAP!'
+            {effect && (() => {
+                const name = (seat: number) =>
+                    props.seatLabels?.[seat] ?? `Player ${seat + 1}`;
+                const A = name(effect.attackerSeat);
+                const V = name(effect.victimSeat);
+                const [emoji, headline, detail] =
+                    effect.style === 'PENALTY'
+                        ? ['⚠️', `${A} skipped a capture!`, 'Hard rule: that character goes back to base']
+                        : effect.style === 'SLAP'
+                        ? ['👋', `${A} slapped ${V}!`, `${V} runs back home crying`]
                         : effect.style === 'DOG'
-                            ? '🐶 DOG CHASE!'
-                            : '💥 CARTOON SHOT!'}
-                </div>
-            )}
-
-            <div className="pointer-events-none absolute bottom-4 left-4 rounded-xl bg-white/85 px-3 py-2 text-xs font-semibold text-[#36546a]">
-                Drag to rotate · Scroll to zoom
-            </div>
+                            ? ['🐶', `${A} set the dog on ${V}!`, `${V} is chased home and the door gets locked`]
+                            : ['🔫', `${A} shot ${V}!`, `${V} goes back to base`];
+                return (
+                    <div
+                        aria-live="polite"
+                        className="pointer-events-none absolute left-1/2 top-16 z-10 w-[min(92%,520px)] -translate-x-1/2 rounded-2xl border-4 border-white bg-[#ffcc32] px-5 py-3 text-center shadow-2xl"
+                    >
+                        <p className="text-xl font-black text-[#253747] sm:text-2xl">
+                            {emoji} {headline}
+                        </p>
+                        <p className="text-sm font-bold text-[#6b4a00]">{detail}</p>
+                    </div>
+                );
+            })()}
         </div>
     );
 });

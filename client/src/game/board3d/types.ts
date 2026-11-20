@@ -4,11 +4,11 @@ import { type GameState, type MoveResult } from '@ludo-rush/shared';
 import { type Vec3 } from '../boardLayout';
 
 export interface Board3DHandle {
-    zoomIn: () => void;
-    zoomOut: () => void;
     resetView: () => void;
     playMove: (move: MoveResult) => Promise<void>;
 }
+
+export type FocusRef = MutableRefObject<THREE.Vector3 | null>;
 
 export interface Props {
     game: GameState;
@@ -41,7 +41,8 @@ export interface ActorData {
 export interface MoveJob {
     move: MoveResult;
     resolve: () => void;
-    stage: 'travel' | 'capture' | 'finish';
+    stage: 'travel' | 'capture' | 'stepin' | 'penalty' | 'finish';
+    penaltyDone?: boolean;
     index: number;
     time: number;
     from: Vec3;
@@ -51,9 +52,15 @@ export interface MoveJob {
 }
 
 export interface FXState {
-    style: CaptureStyle;
+    style: CaptureStyle | 'PENALTY';
     label: string;
-    position: Vec3;
+    /** Seconds the scene lasts (same clock as the animation). */
+    duration: number;
+    attackerSeat: number;
+    victimSeat: number;
+    attackerPos: Vec3;
+    victimPos: Vec3;
+    homePos: Vec3;
 }
 
 export type ActorRegistry = MutableRefObject<
@@ -62,7 +69,5 @@ export type ActorRegistry = MutableRefObject<
 
 
 export type CameraActions = MutableRefObject<{
-    zoomIn: () => void;
-    zoomOut: () => void;
     resetView: () => void;
 } | null>;

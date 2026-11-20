@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource/lilita-one": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
     "@ludo-rush/shared": "file:../shared",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",

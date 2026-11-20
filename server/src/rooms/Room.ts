@@ -316,6 +316,10 @@ export class Room {
             if (![1, 2, 4].includes(partial.piecesPerPlayer)) return 'Pieces must be 1, 2 or 4.';
             next.piecesPerPlayer = partial.piecesPerPlayer;
         }
+        if (partial.difficulty !== undefined) {
+            if (!['EASY', 'MEDIUM', 'HARD'].includes(partial.difficulty)) return 'Unknown difficulty.';
+            next.difficulty = partial.difficulty;
+        }
         if (partial.turnSeconds !== undefined) {
             const s = Math.round(Number(partial.turnSeconds));
             if (!Number.isFinite(s)) return 'Invalid turn time.';
@@ -344,7 +348,7 @@ export class Room {
             const j = randomInt(i + 1);
             [order[i], order[j]] = [order[j]!, order[i]!];
         }
-        const arena = createArenaGame(order.length, this.options.piecesPerPlayer);
+        const arena = createArenaGame(order.length, this.options.piecesPerPlayer, this.options.difficulty);
         order.forEach((m, i) => {
             m.seat = arena.seats[i]!;
         });
