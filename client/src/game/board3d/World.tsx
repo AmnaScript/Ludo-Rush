@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { useMemo, type MutableRefObject } from 'react';
 import { type Piece } from '@ludo-rush/shared';
 import { createLayout, piecePosition, playerColor, routeForPiece, type Vec3 } from '../boardLayout';
-import { SceneDecor } from '../SceneDecor';
 import { type Props, type MoveJob, type FXState, type ActorRegistry, type CameraActions, type FocusRef } from './types';
 import { Tile } from './Tile';
 import { Home } from './Home';
@@ -57,7 +56,7 @@ export function World({
         [game.pieces]
     );
     const seatColor = (seat: number) =>
-        inPlay.has(seat) ? playerColor(seat, game.N) : '#dbe7df';
+        inPlay.has(seat) ? playerColor(seat, game.N) : '#d8c79d';
 
     const legal = useMemo(
         () => new Set(validPieceIds),
@@ -154,13 +153,13 @@ export function World({
         <>
             <color
                 attach="background"
-                args={['#69cfff']}
+                args={['#2d1d12']}
             />
 
             <ambientLight intensity={0.8} />
 
             <hemisphereLight
-                args={['#ffffff', '#3ea46a', 1.0]}
+                args={['#fff1d6', '#7a4a2a', 1.0]}
             />
 
             <directionalLight
@@ -186,17 +185,33 @@ export function World({
                 focus={focus}
             />
 
+            {layout.mode === 'classic' && (
+                <group position={[0, -0.4, 0]}>
+                    {([
+                        [0, 7.6, 15.7, 0.5],
+                        [0, -7.6, 15.7, 0.5],
+                        [7.6, 0, 0.5, 14.7],
+                        [-7.6, 0, 0.5, 14.7],
+                    ] as const).map(([x, z, w, d], i) => (
+                        <mesh key={`frame-${i}`} position={[x, 0, z]} castShadow receiveShadow>
+                            <boxGeometry args={[w, 0.8, d]} />
+                            <meshStandardMaterial color="#8a5428" roughness={0.6} />
+                        </mesh>
+                    ))}
+                </group>
+            )}
+
             {layout.mode === 'classic' ? (
                 <mesh position={[0, -0.53, 0]} receiveShadow castShadow>
                     <boxGeometry args={[14.7, 0.67, 14.7]} />
-                    <meshStandardMaterial color="#27b961" roughness={0.78} />
+                    <meshStandardMaterial color="#efdcae" roughness={0.85} />
                 </mesh>
             ) : (
                 layout.star && (
                     <group position={[0, -0.53, 0]}>
                         <mesh receiveShadow castShadow>
                             <cylinderGeometry args={[layout.star.hub, layout.star.hub, 0.67, 48]} />
-                            <meshStandardMaterial color="#27b961" roughness={0.78} />
+                            <meshStandardMaterial color="#efdcae" roughness={0.85} />
                         </mesh>
                         {layout.star.arms.map((arm, i) => (
                             <mesh
@@ -207,7 +222,7 @@ export function World({
                                 castShadow
                             >
                                 <boxGeometry args={[arm.length, 0.67, arm.width]} />
-                                <meshStandardMaterial color="#27b961" roughness={0.78} />
+                                <meshStandardMaterial color="#efdcae" roughness={0.85} />
                             </mesh>
                         ))}
                     </group>
@@ -221,8 +236,8 @@ export function World({
             >
                 <planeGeometry args={[150, 150]} />
                 <meshStandardMaterial
-                    color="#f6e2b6"
-                    roughness={1}
+                    color="#6a4023"
+                    roughness={0.95}
                 />
             </mesh>
 
@@ -239,7 +254,7 @@ export function World({
                     >
                         <boxGeometry args={[5.25, 0.10, 5.25]} />
                         <meshStandardMaterial
-                            color={inPlay.has(seat) ? playerColor(seat, game.N) : '#c4dccb'}
+                            color={inPlay.has(seat) ? playerColor(seat, game.N) : '#d8c79d'}
                         />
                     </mesh>
                 ))}
@@ -338,7 +353,6 @@ export function World({
 
             <CartoonDog dogRef={dogRef} />
 
-            <SceneDecor layout={layout} />
 
             <CaptureEffect effect={effect} />
 

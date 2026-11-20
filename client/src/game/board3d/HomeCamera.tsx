@@ -43,12 +43,12 @@ export function HomeCamera({
         const aspect = size.width / Math.max(1, size.height);
         // Narrow canvases (phones) need more distance so the whole board fits.
         const fit = Math.max(1, 1.25 / aspect);
-        const distance = layout.extent * 1.7 * fit;
+        const distance = layout.extent * 2.0 * fit;
         // look a little towards the viewer so the board sits above the dice dock
-        wantLook.current.set(dir.x * layout.extent * 0.16, 0, dir.z * layout.extent * 0.16);
+        wantLook.current.set(dir.x * layout.extent * 0.3, 0, dir.z * layout.extent * 0.3);
         wantPos.current.set(
             dir.x * distance,
-            layout.extent * 1.25 * fit,
+            layout.extent * 1.6 * fit,
             dir.z * distance
         );
     };

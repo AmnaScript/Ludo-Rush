@@ -120,6 +120,15 @@ export function CaptureEffect({ effect }: { effect: FXState | null }) {
             }
         }
 
+        if (effect.style === 'PENALTY') {
+            if (burst.current) {
+                burst.current.visible = tt > 0.1 && tt < 0.45;
+                burst.current.position.set(V[0], 1.0, V[2]);
+                burst.current.quaternion.copy(camera.quaternion);
+                burst.current.scale.setScalar(0.7 + tt * 3);
+            }
+        }
+
         if (effect.style === 'DOG') {
             if (lock.current) {
                 const f = THREE.MathUtils.clamp((tt - 0.86) / 0.08, 0, 1);
@@ -161,6 +170,10 @@ export function CaptureEffect({ effect }: { effect: FXState | null }) {
                     {effect.label}
                 </Text>
             </group>
+
+            {effect.style === 'PENALTY' && (
+                <Burst refGroup={burst} color="#d93a2f" spikes={12} size={0.6} />
+            )}
 
             {effect.style === 'GUN' && (
                 <>

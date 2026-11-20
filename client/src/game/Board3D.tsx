@@ -69,7 +69,7 @@ export const Board3D = forwardRef<
     }, []);
 
     return (
-        <div className="relative h-full w-full overflow-hidden bg-[#69cfff]">
+        <div className="relative h-full w-full overflow-hidden bg-[#2d1d12]">
             <Canvas
                 shadows
                 dpr={[1, 1.5]}
@@ -102,7 +102,9 @@ export const Board3D = forwardRef<
                 const A = name(effect.attackerSeat);
                 const V = name(effect.victimSeat);
                 const [emoji, headline, detail] =
-                    effect.style === 'SLAP'
+                    effect.style === 'PENALTY'
+                        ? ['⚠️', `${A} skipped a capture!`, 'Hard rule: that character goes back to base']
+                        : effect.style === 'SLAP'
                         ? ['👋', `${A} slapped ${V}!`, `${V} runs back home crying`]
                         : effect.style === 'DOG'
                             ? ['🐶', `${A} set the dog on ${V}!`, `${V} is chased home and the door gets locked`]

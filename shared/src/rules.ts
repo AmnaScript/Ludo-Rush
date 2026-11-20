@@ -15,6 +15,7 @@ import {
 import type {
     BoardCell,
     Capture,
+    Difficulty,
     EntryRule,
     GameSettings,
     GameState,
@@ -24,6 +25,8 @@ import type {
 } from './gameTypes';
 
 export const DEFAULT_SETTINGS: Readonly<GameSettings> = {
+    difficulty: 'MEDIUM',
+    missedCapturePenalty: false,
     piecesPerPlayer: 4,
     segmentSize: 8,
     laneLength: 5,
@@ -41,6 +44,44 @@ export const DEFAULT_SETTINGS: Readonly<GameSettings> = {
         DOG: 1,
     },
 };
+
+/** Rule changes that define each difficulty (everything else is shared). */
+export function difficultyOverrides(
+    difficulty: Difficulty
+): Partial<GameSettings> {
+    switch (difficulty) {
+        case 'EASY':
+            return {
+                difficulty,
+                entryRule: 'ONE_OR_SIX',
+                exactFinishRoll: false,
+                threeSixesRule: false,
+                squadsProtected: true,
+                starTilesPerSegment: 2,
+                missedCapturePenalty: false,
+            };
+        case 'HARD':
+            return {
+                difficulty,
+                entryRule: 'SIX',
+                exactFinishRoll: true,
+                threeSixesRule: true,
+                squadsProtected: false,
+                starTilesPerSegment: 0,
+                missedCapturePenalty: true,
+            };
+        default:
+            return {
+                difficulty: 'MEDIUM',
+                entryRule: 'SIX',
+                exactFinishRoll: true,
+                threeSixesRule: true,
+                squadsProtected: true,
+                starTilesPerSegment: 1,
+                missedCapturePenalty: false,
+            };
+    }
+}
 
 export function createSettings(
     N: number,
@@ -398,6 +439,73 @@ export function applyMove(
             'Capture requires server randomInt'
         );
     }
+): MoveResult {
+    const result = applyMoveCore(
+        game,
+        pieceId,
+        settings,
+        randomInt
+    );
+
+    if (
+        !settings.missedCapturePenalty ||
+        result.captures.length > 0
+    ) {
+        return result;
+    }
+
+    const missed = capturingMoves(
+        game,
+        settings
+    ).filter(id => id !== pieceId);
+
+    if (missed.length === 0) {
+        return result;
+    }
+
+    // The most advanced piece that could have captured pays the price.
+    const pays = missed
+        .map(id => game.pieces.find(p => p.id === id)!)
+        .sort((a, b) => b.progress - a.progress)[0]!;
+
+    return {
+        ...result,
+        game: {
+            ...result.game,
+            pieces: result.game.pieces.map(p =>
+                p.id === pays.id ? { ...p, progress: -1 } : p
+            ),
+        },
+        penalty: { pieceId: pays.id, from: pays.progress },
+    };
+}
+
+/** Legal moves (for the pending dice) that would capture someone. */
+export function capturingMoves(
+    game: GameState,
+    settings: GameSettings
+): string[] {
+    if (game.dice === null) {
+        return [];
+    }
+
+    return legalMoves(
+        game,
+        game.turnSeat,
+        game.dice,
+        settings
+    ).filter(
+        id =>
+            applyMoveCore(game, id, settings, () => 0)
+                .captures.length > 0
+    );
+}
+
+function applyMoveCore(
+    game: GameState,
+    pieceId: string,
+    settings: GameSettings,
+    randomInt: RandomInt
 ): MoveResult {
     assertGameSettings(game, settings);
 

@@ -1,4 +1,4 @@
-import type { JoinAck } from '@ludo-rush/shared';
+import type { Difficulty, JoinAck } from '@ludo-rush/shared';
 import { socket } from './socket';
 import { useConnectionStore } from '../store/connectionStore';
 import { useRoomStore, type Session } from '../store/roomStore';
@@ -104,11 +104,11 @@ export function startSession() {
   socket.connect();
 }
 
-export function createRoom(nickname: string, piecesPerPlayer: 1 | 2 | 4) {
+export function createRoom(nickname: string, piecesPerPlayer: 1 | 2 | 4, difficulty: Difficulty) {
   const room = useRoomStore.getState();
   rememberNickname(nickname);
   room.setBusy(true);
-  socket.timeout(8000).emit('room:create', { nickname, options: { piecesPerPlayer } }, (err, ack) => {
+  socket.timeout(8000).emit('room:create', { nickname, options: { piecesPerPlayer, difficulty } }, (err, ack) => {
     room.setBusy(false);
     if (err) return room.setError('The server did not answer. Is it running?');
     adopt(ack, nickname);

@@ -28,7 +28,7 @@ export function Tile({
         ? '#ffe864'
         : lane || start
             ? color
-            : '#ffffff';
+            : '#fffaf0';
 
     return (
         <group position={position}>
@@ -60,7 +60,7 @@ export function Tile({
                             ? '#ffc53d'
                             : lane
                                 ? '#ffffff'
-                                : '#dceaf3'
+                                : '#efe1bd'
                     }
                     transparent
                     opacity={
@@ -80,7 +80,7 @@ export function Tile({
                     position={[0, 0.218, 0]}
                     rotation={[-Math.PI / 2, 0, 0]}
                     fontSize={size * 0.4}
-                    color={start ? '#213748' : '#e4a323'}
+                    color={start ? '#2b1a12' : '#e4a323'}
                     anchorX="center"
                     anchorY="middle"
                 >
