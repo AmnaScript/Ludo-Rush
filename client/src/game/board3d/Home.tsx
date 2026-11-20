@@ -30,7 +30,7 @@ export function Home({
                 <cylinderGeometry
                     args={[size * 0.95, size, 0.12, 20]}
                 />
-                <meshStandardMaterial color="#e8f7df" />
+                <meshStandardMaterial color="#efdcae" />
             </mesh>
 
             <RoundedBox
@@ -83,7 +83,7 @@ export function Home({
                 font={GAME_FONT}
                 fontSize={compact ? 0.24 : 0.35}
                 color={color}
-                outlineColor="#243040"
+                outlineColor="#2b1a12"
                 outlineWidth={0.028}
             >
                 {label ?? `P${seat + 1}`}

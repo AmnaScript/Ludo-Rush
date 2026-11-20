@@ -41,7 +41,8 @@ export interface ActorData {
 export interface MoveJob {
     move: MoveResult;
     resolve: () => void;
-    stage: 'travel' | 'capture' | 'finish';
+    stage: 'travel' | 'capture' | 'stepin' | 'penalty' | 'finish';
+    penaltyDone?: boolean;
     index: number;
     time: number;
     from: Vec3;
@@ -51,7 +52,7 @@ export interface MoveJob {
 }
 
 export interface FXState {
-    style: CaptureStyle;
+    style: CaptureStyle | 'PENALTY';
     label: string;
     /** Seconds the scene lasts (same clock as the animation). */
     duration: number;

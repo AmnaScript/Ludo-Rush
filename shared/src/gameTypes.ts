@@ -3,9 +3,13 @@
 
 export type CaptureStyle = 'GUN' | 'SLAP' | 'DOG';
 export type Weapon = 'PISTOL' | 'RIFLE';
+export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 export type EntryRule = 'SIX' | 'ONE_OR_SIX' | 'ANY';
 
 export interface GameSettings {
+    difficulty: Difficulty;
+    /** Hard rule: skipping a possible capture sends your own capturing piece home. */
+    missedCapturePenalty: boolean;
     piecesPerPlayer: 1 | 2 | 3 | 4;
     segmentSize: number;
     laneLength: number;
@@ -89,6 +93,8 @@ export interface MoveResult {
     playerFinished: boolean;
     extraTurn: boolean;
     nextSeat: number | null;
+    /** Hard mode: a piece that could have captured but did not is sent home. */
+    penalty?: { pieceId: string; from: number };
 }
 
 export interface RollResult {

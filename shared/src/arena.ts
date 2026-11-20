@@ -1,5 +1,5 @@
-import type { GameSettings, GameState } from './gameTypes';
-import { createGame, createSettings } from './rules';
+import type { Difficulty, GameSettings, GameState } from './gameTypes';
+import { createGame, createSettings, difficultyOverrides } from './rules';
 
 /** Home-lane length used by every board. */
 export const LANE_LENGTH = 6;
@@ -40,7 +40,8 @@ export function seatsForPlayers(count: number): number[] {
 /** The one place that decides the settings of a Ludo Rush game. */
 export function arenaSettings(
     count: number,
-    piecesPerPlayer: 1 | 2 | 3 | 4
+    piecesPerPlayer: 1 | 2 | 3 | 4,
+    difficulty: Difficulty = 'MEDIUM'
 ): GameSettings {
     const engineSeats = Math.max(4, count);
     return createSettings(engineSeats, {
@@ -48,6 +49,7 @@ export function arenaSettings(
         segmentSize: segmentForPlayers(engineSeats),
         laneLength: LANE_LENGTH,
         captureStyles: { SLAP: 1, DOG: 1, GUN: 1 },
+        ...difficultyOverrides(difficulty),
     });
 }
 
@@ -61,9 +63,10 @@ export interface ArenaGame {
 /** Creates a game for `count` players (empty corners simply have no pieces). */
 export function createArenaGame(
     count: number,
-    piecesPerPlayer: 1 | 2 | 3 | 4
+    piecesPerPlayer: 1 | 2 | 3 | 4,
+    difficulty: Difficulty = 'MEDIUM'
 ): ArenaGame {
-    const settings = arenaSettings(count, piecesPerPlayer);
+    const settings = arenaSettings(count, piecesPerPlayer, difficulty);
     const seats = seatsForPlayers(count);
     const full = createGame(Math.max(4, count), settings);
     const game: GameState = {
