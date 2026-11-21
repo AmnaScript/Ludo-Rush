@@ -1,10 +1,9 @@
 import { RollingDice } from './RollingDice';
 
-/** Whose turn it is and the dice. The dice itself is the roll button. */
+/** Whose turn it is and the dice. The dice itself is the roll button. No instructions: just the dice. */
 export function TurnDock({
   color,
   who,
-  hint,
   dice,
   rolling,
   canRoll,
@@ -15,7 +14,6 @@ export function TurnDock({
 }: {
   color: string;
   who: string;
-  hint: string;
   dice: number | null;
   rolling: boolean;
   canRoll: boolean;
@@ -51,7 +49,6 @@ export function TurnDock({
             <div className="h-full rounded-full bg-[var(--brass)] transition-[width] duration-1000 ease-linear" style={{ width: `${pct}%` }} />
           </div>
         ) : null}
-        <p className="mt-1 text-sm font-extrabold leading-snug text-[var(--ink-soft)]">{hint}</p>
       </div>
     </div>
   );

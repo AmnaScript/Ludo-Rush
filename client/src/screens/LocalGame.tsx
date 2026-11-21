@@ -573,18 +573,6 @@ export function LocalGame({
   };
 
   const settings = settingsRef.current;
-  const hint =
-    phase === 'ROLL'
-      ? 'Tap the dice'
-      : phase === 'CHOOSE'
-        ? legalIds.length > 1
-          ? 'Tap a glowing character'
-          : `Moving ${dice} steps…`
-        : phase === 'ANIMATING'
-          ? 'Watch the move'
-          : phase === 'PAUSING'
-            ? 'No move possible, next player'
-            : '';
 
   /* ------------------------------ setup screen ------------------------------ */
   if (phase === 'SETUP' || !game) {
@@ -654,7 +642,6 @@ export function LocalGame({
       <TurnDock
         color={playerColor(activeSeat, game.N)}
         who={`${nameOf(activeSeat)}'s turn`}
-        hint={hint}
         dice={dice}
         rolling={rolling}
         canRoll={phase === 'ROLL'}

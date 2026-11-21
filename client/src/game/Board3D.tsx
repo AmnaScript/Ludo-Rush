@@ -22,8 +22,6 @@ export const Board3D = forwardRef<
     const cameraActions =
         useRef<CameraActions['current']>(null);
 
-    const focus = useRef<THREE.Vector3 | null>(null);
-
     const [effect, setEffect] =
         useState<FXState | null>(null);
 
@@ -72,12 +70,13 @@ export const Board3D = forwardRef<
         <div className="relative h-full w-full overflow-hidden bg-[#150e0a]">
             <Canvas
                 shadows
+                orthographic
                 dpr={[1, 1.5]}
                 camera={{
-                    fov: 42,
-                    position: [16, 19, 22],
-                    near: 0.1,
-                    far: 250,
+                    zoom: 40,
+                    position: [0, 60, 0],
+                    near: 1,
+                    far: 200,
                 }}
                 gl={{
                     antialias: true,
@@ -92,7 +91,6 @@ export const Board3D = forwardRef<
                     cameraActions={cameraActions}
                     effect={effect}
                     setEffect={setEffect}
-                    focus={focus}
                 />
             </Canvas>
 
@@ -107,7 +105,7 @@ export const Board3D = forwardRef<
                         : effect.style === 'SLAP'
                         ? ['👋', `${A} slapped ${V}!`, `${V} runs back home crying`]
                         : effect.style === 'DOG'
-                            ? ['🐶', `${A} set the dog on ${V}!`, `${V} is chased home and the door gets locked`]
+                            ? ['🐶', `${A} whistled for the dog!`, `${V} gets chased home and the door is locked`]
                             : ['🔫', `${A} shot ${V}!`, `${V} goes back to base`];
                 return (
                     <div
