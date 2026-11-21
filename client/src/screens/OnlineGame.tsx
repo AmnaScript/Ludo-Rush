@@ -22,7 +22,6 @@ export function OnlineGame() {
 
   const me = snapshot.players.find((p) => p.id === session.playerId);
   const mySeat = me?.seat ?? null;
-  const spectator = mySeat === null;
   const isHost = snapshot.hostId === session.playerId;
   const N = snapshot.game!.N;
 
@@ -158,25 +157,11 @@ export function OnlineGame() {
     () => arenaSettings(players.length, 4, difficulty),
     [players.length, difficulty],
   );
-  const hint = finished
-    ? ''
-    : spectator
-      ? `You are watching ${nameOfSeat(activeSeat)}`
-      : myTurn
-        ? animating
-          ? 'Watch your move'
-          : mustChoose
-            ? `Tap a glowing character`
-            : canRoll
-              ? 'Tap the dice'
-              : 'Rolling…'
-        : `Waiting for ${nameOfSeat(activeSeat)}`;
 
   const dock = finished ? undefined : (
     <TurnDock
       color={playerColor(activeSeat, N)}
       who={myTurn ? 'YOUR TURN' : `${nameOfSeat(activeSeat)}'s turn`}
-      hint={hint}
       dice={dice}
       rolling={rolling}
       canRoll={canRoll}
@@ -234,7 +219,7 @@ export function OnlineGame() {
 
       <RulesCard difficulty={difficulty} />
 
-      <ChatPanel playerCount={N} className="h-72" />
+      <ChatPanel playerCount={N} className="h-[34rem] min-h-[26rem]" />
 
       <button onClick={leaveRoom} className="btn btn-paper btn-small w-full">
         Leave room

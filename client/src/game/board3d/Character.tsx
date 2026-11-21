@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Outlines } from '@react-three/drei';
+import { Upright } from './Upright';
 import { type GameState, type Piece } from '@ludo-rush/shared';
 import { playerColor, type Vec3 } from '../boardLayout';
 import { type ActorRegistry } from './types';
@@ -45,6 +47,8 @@ export function Character({
     const legR = useRef<THREE.Group>(null);
     const gun = useRef<THREE.Group>(null);
     const flash = useRef<THREE.Mesh>(null);
+    const ring = useRef<THREE.Mesh>(null);
+    const chevron = useRef<THREE.Group>(null);
 
     const down = useRef<[number, number] | null>(null);
 
@@ -54,7 +58,7 @@ export function Character({
     );
 
     const done = piece.progress >= game.L + game.H;
-    const scale = (compact ? 0.62 : 0.84) * (done ? 0.62 : 1);
+    const scale = (compact ? 0.7 : 1.0) * (done ? 0.7 : 1);
 
     const look = useMemo(
         () => characterLook(piece.ownerSeat, Number(piece.id.split('-p')[1] ?? 0)),
@@ -109,6 +113,9 @@ export function Character({
 
         const action = entry.action;
         const t = clock.elapsedTime;
+
+        if (ring.current) ring.current.scale.setScalar(1 + Math.sin(t * 6) * 0.12);
+        if (chevron.current) chevron.current.position.y = 1.78 + Math.abs(Math.sin(t * 5)) * 0.14;
 
         const speed =
             action === 'run' || action === 'panic'
@@ -188,31 +195,25 @@ export function Character({
 
     return (
         <group ref={root} position={position}>
+            <mesh position={[0, 0.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[0.34 * scale, 20]} />
+                <meshBasicMaterial color="#000000" transparent opacity={0.28} depthWrite={false} />
+            </mesh>
             {legal && (
-                <mesh
-                    position={[0, 0.04, 0]}
-                    rotation={[-Math.PI / 2, 0, 0]}
-                >
-                    <ringGeometry
-                        args={[
-                            0.26 * scale,
-                            0.39 * scale,
-                            28,
-                        ]}
-                    />
-                    <meshBasicMaterial
-                        color="#ffb300"
-                        side={THREE.DoubleSide}
-                    />
+                <mesh ref={ring} position={[0, 0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <ringGeometry args={[0.46 * scale, 0.62 * scale, 32]} />
+                    <meshBasicMaterial color="#ffb800" side={THREE.DoubleSide} toneMapped={false} />
                 </mesh>
             )}
 
+            <Upright>
             <group scale={scale}>
                 <group ref={body}>
                     {/* torso: shirt, collar and belt */}
-                    <mesh castShadow position={[0, 0.61, 0]}>
+                    <mesh position={[0, 0.61, 0]}>
                         <capsuleGeometry args={[0.2, 0.28, 8, 16]} />
                         <meshStandardMaterial color={color} roughness={0.55} />
+                        <Outlines thickness={0.022} color="#1a0f08" />
                     </mesh>
                     <mesh position={[0, 0.84, 0]} rotation={[Math.PI / 2, 0, 0]}>
                         <torusGeometry args={[0.125, 0.032, 8, 18]} />
@@ -227,10 +228,12 @@ export function Character({
                         <meshBasicMaterial color={trim} />
                     </mesh>
 
+                    <group position={[0, -0.27, 0]} scale={1.25}>
                     {/* head */}
-                    <mesh castShadow position={[0, 1.08, 0]} scale={[1, 1.02, 0.97]}>
+                    <mesh position={[0, 1.08, 0]} scale={[1, 1.02, 0.97]}>
                         <sphereGeometry args={[0.27, 24, 18]} />
                         <meshStandardMaterial color={look.skin} roughness={0.7} />
+                        <Outlines thickness={0.02} color="#1a0f08" />
                     </mesh>
                     {[-1, 1].map(side => (
                         <mesh key={`ear-${side}`} position={[side * 0.265, 1.07, 0]}>
@@ -276,7 +279,7 @@ export function Character({
                     ))}
 
                     {/* hair or cap */}
-                    <mesh castShadow position={[0, 1.1, -0.025]} rotation={[-0.42, 0, 0]}>
+                    <mesh position={[0, 1.1, -0.025]} rotation={[-0.42, 0, 0]}>
                         <sphereGeometry args={[0.292, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.56]} />
                         <meshStandardMaterial color={look.style === 1 ? color : look.hair} roughness={0.65} />
                     </mesh>
@@ -288,22 +291,24 @@ export function Character({
                     )}
                     {look.style === 2 && (
                         <group position={[0, 1.08, -0.3]}>
-                            <mesh castShadow>
+                            <mesh>
                                 <sphereGeometry args={[0.095, 12, 10]} />
                                 <meshStandardMaterial color={look.hair} roughness={0.65} />
                             </mesh>
-                            <mesh castShadow position={[0, -0.13, -0.03]}>
+                            <mesh position={[0, -0.13, -0.03]}>
                                 <capsuleGeometry args={[0.05, 0.14, 5, 8]} />
                                 <meshStandardMaterial color={look.hair} roughness={0.65} />
                             </mesh>
                         </group>
                     )}
                     {look.style === 3 && (
-                        <mesh castShadow position={[0, 1.4, -0.04]}>
+                        <mesh position={[0, 1.4, -0.04]}>
                             <sphereGeometry args={[0.115, 14, 12]} />
                             <meshStandardMaterial color={look.hair} roughness={0.65} />
                         </mesh>
                     )}
+
+                    </group>
 
                     {/* arms */}
                     {([armL, armR] as const).map((armRef, index) => (
@@ -312,36 +317,39 @@ export function Character({
                             ref={armRef}
                             position={[index === 0 ? -0.27 : 0.27, 0.8, 0]}
                         >
-                            <mesh castShadow position={[0, -0.1, 0]}>
+                            <mesh position={[0, -0.1, 0]}>
                                 <capsuleGeometry args={[0.088, 0.1, 6, 10]} />
                                 <meshStandardMaterial color={color} roughness={0.55} />
                             </mesh>
-                            <mesh castShadow position={[0, -0.27, 0]}>
+                            <mesh position={[0, -0.27, 0]}>
                                 <capsuleGeometry args={[0.064, 0.12, 5, 8]} />
                                 <meshStandardMaterial color={look.skin} roughness={0.7} />
                             </mesh>
-                            <mesh castShadow position={[0, -0.39, 0]}>
+                            <mesh position={[0, -0.39, 0]}>
                                 <sphereGeometry args={[0.078, 12, 10]} />
                                 <meshStandardMaterial color={look.skin} roughness={0.7} />
                             </mesh>
 
                             {index === 1 && (
-                                <group ref={gun} visible={false} position={[0, -0.39, 0.2]}>
-                                    <mesh castShadow>
-                                        <boxGeometry args={[0.13, 0.14, 0.47]} />
-                                        <meshStandardMaterial color="#33414e" metalness={0.35} />
+                                <group ref={gun} visible={false} position={[0, -0.42, 0]}>
+                                    {/* barrel runs along the arm, away from the hand */}
+                                    <mesh position={[0, -0.2, 0]}>
+                                        <boxGeometry args={[0.14, 0.44, 0.15]} />
+                                        <meshStandardMaterial color="#4a5866" metalness={0.5} roughness={0.4} />
+                                        <Outlines thickness={0.02} color="#1a0f08" />
                                     </mesh>
-                                    <mesh position={[0, -0.13, -0.12]}>
-                                        <boxGeometry args={[0.1, 0.22, 0.12]} />
-                                        <meshStandardMaterial color="#1f2634" />
+                                    <mesh position={[0, -0.02, -0.15]}>
+                                        <boxGeometry args={[0.12, 0.16, 0.2]} />
+                                        <meshStandardMaterial color="#2a3340" />
+                                        <Outlines thickness={0.02} color="#1a0f08" />
                                     </mesh>
                                     <mesh
                                         ref={flash}
                                         visible={false}
-                                        position={[0, 0, 0.34]}
-                                        rotation={[Math.PI / 2, 0, 0]}
+                                        position={[0, -0.58, 0]}
+                                        rotation={[Math.PI, 0, 0]}
                                     >
-                                        <coneGeometry args={[0.15, 0.34, 7]} />
+                                        <coneGeometry args={[0.16, 0.36, 7]} />
                                         <meshBasicMaterial color="#fff22e" toneMapped={false} />
                                     </mesh>
                                 </group>
@@ -352,11 +360,11 @@ export function Character({
                     {/* legs and shoes */}
                     {[-0.11, 0.11].map((x, index) => (
                         <group key={index} ref={index === 0 ? legL : legR} position={[x, 0.36, 0]}>
-                            <mesh castShadow position={[0, -0.15, 0]}>
+                            <mesh position={[0, -0.15, 0]}>
                                 <capsuleGeometry args={[0.092, 0.2, 6, 10]} />
                                 <meshStandardMaterial color="#2b3a55" roughness={0.65} />
                             </mesh>
-                            <mesh castShadow position={[0, -0.33, 0.06]}>
+                            <mesh position={[0, -0.33, 0.06]}>
                                 <capsuleGeometry args={[0.085, 0.12, 5, 10]} />
                                 <meshStandardMaterial color="#fbfbfb" roughness={0.5} />
                             </mesh>
@@ -369,8 +377,17 @@ export function Character({
                 </group>
             </group>
 
+            {legal && (
+                <group ref={chevron} position={[0, 1.78, 0]} scale={scale}>
+                    <mesh rotation={[0, 0, Math.PI]}>
+                        <coneGeometry args={[0.2, 0.3, 3]} />
+                        <meshBasicMaterial color="#ffb800" toneMapped={false} />
+                    </mesh>
+                </group>
+            )}
+
             <mesh
-                position={[0, 0.48 * scale, 0]}
+                position={[0, 0.7 * scale, 0]}
                 onPointerDown={event => {
                     down.current = [
                         event.nativeEvent.clientX,
@@ -412,6 +429,7 @@ export function Character({
                     depthWrite={false}
                 />
             </mesh>
+            </Upright>
         </group>
     );
 }

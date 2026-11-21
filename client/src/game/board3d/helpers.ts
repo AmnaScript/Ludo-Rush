@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { type Vec3 } from '../boardLayout';
+import { screen } from './screen';
 
 export function vec(position: THREE.Vector3): Vec3 {
     return [
@@ -29,6 +30,11 @@ export function moveBetween(
     );
 }
 
+/**
+ * Turn a character / dog towards a direction of travel. The model stands up
+ * facing the viewer, so this stores a yaw that Upright applies:
+ * 0 = towards the viewer, PI/2 = right, PI = away, -PI/2 = left.
+ */
 export function faceToward(
     object: THREE.Object3D,
     from: Vec3,
@@ -38,11 +44,25 @@ export function faceToward(
     const dz = to[2] - from[2];
 
     if (Math.hypot(dx, dz) > 0.005) {
-        object.rotation.y = Math.atan2(dx, dz);
+        const right = dx * screen.right.x + dz * screen.right.z;
+        const down = -(dx * screen.up.x + dz * screen.up.z);
+        object.userData.yaw = Math.atan2(right, down);
     }
+}
+
+/** Face left or right on screen, towards a target. Profile reads best for slap / gun. */
+export function faceSide(object: THREE.Object3D, from: Vec3, to: Vec3): void {
+    const right = (to[0] - from[0]) * screen.right.x + (to[2] - from[2]) * screen.right.z;
+    object.userData.yaw = right >= 0 ? Math.PI / 2 : -Math.PI / 2;
 }
 
 export function smooth(t: number): number {
     const x = THREE.MathUtils.clamp(t, 0, 1);
     return x * x * (3 - 2 * x);
+}
+
+/** Test hook: set window.__ludoTimeScale = 0.2 in the console to watch the scenes in slow motion. */
+export function timeScale(): number {
+    const v = (window as unknown as { __ludoTimeScale?: number }).__ludoTimeScale;
+    return typeof v === 'number' && v > 0 ? v : 1;
 }

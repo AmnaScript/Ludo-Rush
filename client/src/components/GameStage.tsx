@@ -152,7 +152,7 @@ export function GameStage({
 
           {dock && (
             <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-3">
-              <div className="pointer-events-auto w-full max-w-[640px]">{dock}</div>
+              <div className="pointer-events-auto w-full max-w-[400px]">{dock}</div>
             </div>
           )}
         </div>
