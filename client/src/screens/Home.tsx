@@ -1,3 +1,4 @@
+import { CLASSIC_COLORS } from '../game/boardLayout';
 import { useState } from 'react';
 import { ROOM_LIMITS, type Difficulty } from '@ludo-rush/shared';
 import { DifficultyPicker } from '../components/DifficultyPicker';
@@ -7,7 +8,7 @@ import { useConnectionStore } from '../store/connectionStore';
 import { useRoomStore } from '../store/roomStore';
 
 type Step = 'menu' | 'create' | 'join';
-const COLORS = ['#d93a2f', '#2f6bd8', '#f2b81c', '#2a9d57'];
+const COLORS = CLASSIC_COLORS;
 
 export function Home({ onLocal }: { onLocal: () => void }) {
   const connected = useConnectionStore((s) => s.connected);
@@ -55,7 +56,7 @@ export function Home({ onLocal }: { onLocal: () => void }) {
             <br />
             <span style={{ color: 'var(--yellow)' }}>RUSH</span>
           </h1>
-          <p className="mt-4 font-extrabold text-[var(--paper)]">Shoot. Slap. Sic the dog. Get home first.</p>
+          <p className="mt-4 font-extrabold text-[var(--cream)]">Shoot. Slap. Sic the dog. Get home first.</p>
         </div>
 
         <div className="mt-6 flex items-end justify-center gap-1 sm:gap-3">
@@ -142,7 +143,7 @@ export function Home({ onLocal }: { onLocal: () => void }) {
           )}
         </div>
 
-        <div className="mt-5 flex items-center gap-2 text-sm font-bold text-[var(--paper)] opacity-80">
+        <div className="mt-5 flex items-center gap-2 text-sm font-bold text-[var(--cream)] opacity-80">
           <DiceIcon className="h-6 w-6" /> 2 to 4 players per room
         </div>
       </div>

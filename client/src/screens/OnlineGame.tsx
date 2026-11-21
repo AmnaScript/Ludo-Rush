@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, WifiOff } from 'lucide-react';
 import { DIFFICULTY_INFO, arenaSettings, type GameState, type TurnInfo } from '@ludo-rush/shared';
 import { Board3D, type Board3DHandle } from '../game/Board3D';
 import { playerColor } from '../game/boardLayout';
 import { GameStage } from '../components/GameStage';
 import { RulesCard } from '../components/RulesCard';
+import { Standings } from '../components/Standings';
 import { ChatPanel } from '../components/ChatPanel';
 import { play } from '../audio/sfx';
 import { ROLL_MS } from '../components/RollingDice';
@@ -183,6 +183,7 @@ export function OnlineGame() {
       onRoll={roll}
       yourTurn={myTurn}
       secondsLeft={myTurn ? secondsLeft : null}
+      totalSeconds={snapshot.options.turnSeconds}
     />
   );
 
@@ -216,28 +217,20 @@ export function OnlineGame() {
         </p>
       )}
 
-      <section className="panel p-4">
-        <p className="panel-title mb-2">Players</p>
-        <ul className="space-y-1.5">
-          {players.map((p) => (
-            <li
-              key={p.id}
-              className={`flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 font-extrabold ${p.seat === activeSeat && !finished ? 'border-[var(--ink)] bg-[var(--yellow)]' : 'border-transparent'}`}
-            >
-              <span className="h-4 w-4 shrink-0 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: playerColor(p.seat!, N) }} />
-              <span className="truncate">
-                {p.nickname}
-                {p.id === session.playerId && <span className="text-[var(--ink-soft)]"> (you)</span>}
-              </span>
-              {p.isBot && <Bot size={14} className="shrink-0" aria-label="Bot" />}
-              {!p.connected && !p.isBot && <WifiOff size={14} className="shrink-0 text-[var(--red)]" aria-label="Offline" />}
-              <span className="ml-auto shrink-0 text-sm text-[var(--ink-soft)]">
-                {game.ranking.includes(p.seat!) ? `#${game.ranking.indexOf(p.seat!) + 1}` : `${homeCount(p.seat!)}/${perPlayer} home`}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <Standings
+        rows={players.map((p) => ({
+          key: p.id,
+          name: p.nickname,
+          color: playerColor(p.seat!, N),
+          home: homeCount(p.seat!),
+          total: perPlayer,
+          rank: game.ranking.includes(p.seat!) ? game.ranking.indexOf(p.seat!) + 1 : undefined,
+          active: p.seat === activeSeat && !finished,
+          you: p.id === session.playerId,
+          bot: p.isBot,
+          offline: !p.connected && !p.isBot,
+        }))}
+      />
 
       <RulesCard difficulty={difficulty} />
 

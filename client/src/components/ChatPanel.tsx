@@ -55,6 +55,14 @@ export function ChatPanel({ playerCount, className = '' }: { playerCount: number
         )}
       </div>
 
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {['😂 LOL', '😈 Savage', '😱 Panic', '👍 GG'].map((e) => (
+          <button key={e} type="button" onClick={() => socket.emit('chat:send', { text: e })} className="chip !px-2.5 !py-1 text-xs">
+            {e}
+          </button>
+        ))}
+      </div>
+
       <form
         className="mt-2 flex gap-2"
         onSubmit={(e) => {

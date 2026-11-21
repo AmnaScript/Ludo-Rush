@@ -1,9 +1,10 @@
 import { DIFFICULTY_INFO, type Difficulty } from '@ludo-rush/shared';
 
 const ORDER: Difficulty[] = ['EASY', 'MEDIUM', 'HARD'];
-const BADGE: Record<Difficulty, string> = { EASY: 'var(--green)', MEDIUM: 'var(--yellow)', HARD: 'var(--red)' };
+const ACCENT: Record<Difficulty, string> = { EASY: 'var(--green)', MEDIUM: 'var(--brass)', HARD: 'var(--red)' };
+const FACE: Record<Difficulty, string> = { EASY: '🙂', MEDIUM: '🎲', HARD: '😈' };
 
-/** Three big cards, each listing its rules in plain words. */
+/** Three rule presets side by side; each card lists its rules in plain words. */
 export function DifficultyPicker({
   value,
   onChange,
@@ -14,7 +15,7 @@ export function DifficultyPicker({
   disabled?: boolean;
 }) {
   return (
-    <div className="space-y-2.5" role="radiogroup" aria-label="Difficulty">
+    <div className="grid gap-3 md:grid-cols-3" role="radiogroup" aria-label="Difficulty">
       {ORDER.map((d) => {
         const info = DIFFICULTY_INFO[d];
         const on = value === d;
@@ -26,20 +27,24 @@ export function DifficultyPicker({
             aria-checked={on}
             disabled={disabled}
             onClick={() => onChange(d)}
-            className={`block w-full rounded-2xl border-[3px] border-[var(--ink)] p-3 text-left transition ${on ? 'bg-[#fffaf0] shadow-[0_4px_0_var(--ink)]' : 'bg-[var(--paper-2)] opacity-80 hover:opacity-100'} disabled:cursor-not-allowed`}
+            style={{ borderColor: on ? ACCENT[d] : 'transparent' }}
+            className={`flex flex-col rounded-2xl border-[3px] p-3.5 text-left transition disabled:cursor-not-allowed ${
+              on ? 'bg-[var(--paper-2)] shadow-[0_5px_0_var(--ink)]' : 'bg-[#211812] opacity-75 hover:opacity-100'
+            }`}
           >
             <span className="flex items-center gap-2">
-              <span className="h-5 w-5 rounded-full border-[3px] border-[var(--ink)]" style={{ background: on ? BADGE[d] : 'transparent' }} />
-              <span className="font-title text-xl">{info.label}</span>
-              <span className="text-sm font-bold text-[var(--ink-soft)]">{info.tagline}</span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl text-xl" style={{ background: 'rgb(255 255 255 / 0.07)' }}>
+                {FACE[d]}
+              </span>
+              <span className="font-title text-xl" style={{ color: on ? ACCENT[d] : undefined }}>{info.label}</span>
+              {on && <span className="badge badge-amber ml-auto">Selected</span>}
             </span>
-            {on && (
-              <ul className="mt-2 list-disc space-y-0.5 pl-9 text-sm font-bold">
-                {info.rules.map((r) => (
-                  <li key={r}>{r}</li>
-                ))}
-              </ul>
-            )}
+            <span className="mt-1.5 text-sm font-bold text-[var(--ink-soft)]">{info.tagline}</span>
+            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-[13px] font-bold leading-snug">
+              {info.rules.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
           </button>
         );
       })}

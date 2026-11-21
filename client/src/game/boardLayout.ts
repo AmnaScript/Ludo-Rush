@@ -29,10 +29,10 @@ export interface BoardLayout {
 }
 
 export const CLASSIC_COLORS = [
-    '#d93a2f',
-    '#2f6bd8',
-    '#f2b81c',
-    '#2a9d57',
+    '#e0343a',
+    '#5b8df0',
+    '#ffb800',
+    '#22a96b',
 ];
 
 /** Lightness cycles so neighbouring seats differ even when hues are close. */

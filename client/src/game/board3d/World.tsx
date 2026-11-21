@@ -153,7 +153,7 @@ export function World({
         <>
             <color
                 attach="background"
-                args={['#2d1d12']}
+                args={['#150e0a']}
             />
 
             <ambientLight intensity={0.8} />
@@ -236,7 +236,7 @@ export function World({
             >
                 <planeGeometry args={[150, 150]} />
                 <meshStandardMaterial
-                    color="#6a4023"
+                    color="#2c1c13"
                     roughness={0.95}
                 />
             </mesh>
