@@ -1,6 +1,6 @@
 import { RollingDice } from './RollingDice';
 
-/** Whose turn it is, what to do, and the dice. The dice itself is the roll button. */
+/** Whose turn it is and the dice. The dice itself is the roll button. */
 export function TurnDock({
   color,
   who,
@@ -11,6 +11,7 @@ export function TurnDock({
   onRoll,
   yourTurn = true,
   secondsLeft,
+  totalSeconds,
 }: {
   color: string;
   who: string;
@@ -21,28 +22,36 @@ export function TurnDock({
   onRoll: () => void;
   yourTurn?: boolean;
   secondsLeft?: number | null;
+  totalSeconds?: number;
 }) {
+  const showTimer = secondsLeft != null && yourTurn;
+  const pct = showTimer && totalSeconds ? Math.max(0, Math.min(100, (secondsLeft! / totalSeconds) * 100)) : 0;
   return (
-    <div className="panel flex items-center gap-4 px-4 py-2.5">
+    <div className="panel flex items-center gap-4 px-4 py-3" style={{ borderColor: canRoll ? 'var(--brass)' : undefined }}>
       <button
         type="button"
         disabled={!canRoll}
         onClick={onRoll}
         aria-label="Roll the dice"
-        className={`flex h-[84px] w-[84px] shrink-0 items-center justify-center rounded-2xl border-[3px] border-[var(--ink)] transition ${
-          canRoll ? 'pulse-ring cursor-pointer bg-[var(--yellow)] hover:scale-105' : 'bg-[var(--paper-2)]'
+        className={`flex h-[84px] w-[84px] shrink-0 items-center justify-center rounded-2xl transition ${
+          canRoll ? 'pulse-ring cursor-pointer bg-[var(--brass)] hover:scale-105' : 'bg-[var(--paper-2)]'
         } disabled:cursor-default`}
       >
         <RollingDice value={dice} rolling={rolling} size={52} />
       </button>
 
       <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 font-title text-xl leading-tight">
-          <span className="h-4 w-4 shrink-0 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: color }} />
+        <p className="flex items-center gap-2 font-title text-xl uppercase leading-tight">
+          <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}` }} />
           <span className="truncate">{who}</span>
-          {secondsLeft != null && yourTurn && <span className="ml-auto shrink-0 text-sm text-[var(--ink-soft)]">{secondsLeft}s</span>}
+          {showTimer && <span className="ml-auto shrink-0 text-sm text-[var(--ink-soft)]">{secondsLeft}s</span>}
         </p>
-        <p className="text-sm font-extrabold leading-snug text-[var(--ink-soft)]">{hint}</p>
+        {showTimer && totalSeconds ? (
+          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-black/40">
+            <div className="h-full rounded-full bg-[var(--brass)] transition-[width] duration-1000 ease-linear" style={{ width: `${pct}%` }} />
+          </div>
+        ) : null}
+        <p className="mt-1 text-sm font-extrabold leading-snug text-[var(--ink-soft)]">{hint}</p>
       </div>
     </div>
   );

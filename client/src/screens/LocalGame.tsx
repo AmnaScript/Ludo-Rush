@@ -29,6 +29,7 @@ import {
 import { playerColor } from '../game/boardLayout';
 import { ROLL_MS } from '../components/RollingDice';
 import { GameStage } from '../components/GameStage';
+import { Standings } from '../components/Standings';
 import { TurnDock } from '../components/TurnDock';
 import { RulesCard } from '../components/RulesCard';
 import { DifficultyPicker } from '../components/DifficultyPicker';
@@ -589,13 +590,20 @@ export function LocalGame({
   if (phase === 'SETUP' || !game) {
     return (
       <div className="table-bg fixed inset-0 z-30 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="mx-auto max-w-5xl px-4 py-8">
           <div className="mb-5 flex items-center justify-between">
-            <h1 className="font-title text-4xl text-[var(--paper)] drop-shadow-[0_3px_0_var(--ink)]">New game</h1>
+            <h1 className="font-title text-4xl text-[var(--cream)] drop-shadow-[0_3px_0_var(--ink)]">New game</h1>
             <button onClick={onExit} className="btn btn-paper btn-small">Back</button>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-[1fr_1.2fr]">
+          <div className="grid gap-5">
+            <section className="panel p-5">
+              <p className="label">Difficulty</p>
+              <div className="mt-2">
+                <DifficultyPicker value={difficulty} onChange={setDifficulty} />
+              </div>
+            </section>
+
             <section className="panel space-y-5 p-5">
               <div>
                 <p className="label">Players on this device</p>
@@ -621,13 +629,6 @@ export function LocalGame({
               </div>
 
               <button onClick={startGame} className="btn btn-red w-full !py-4 text-2xl">Start game</button>
-            </section>
-
-            <section className="panel p-5">
-              <p className="label">Difficulty</p>
-              <div className="mt-2">
-                <DifficultyPicker value={difficulty} onChange={setDifficulty} />
-              </div>
             </section>
 
             <section className="panel p-5 md:col-span-2">
@@ -695,27 +696,22 @@ export function LocalGame({
         </section>
       )}
 
-      <section className="panel p-4">
-        <p className="panel-title mb-2">Players</p>
-        <ul className="space-y-1.5">
-          {seatsInPlay(game).map(seat => (
-            <li
-              key={seat}
-              className={`flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 font-extrabold ${seat === activeSeat && phase !== 'FINISHED' ? 'border-[var(--ink)] bg-[var(--yellow)]' : 'border-transparent'}`}
-            >
-              <span className="h-4 w-4 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: playerColor(seat, game.N) }} />
-              {nameOf(seat)}
-              <span className="ml-auto text-sm text-[var(--ink-soft)]">
-                {homeCount(seat)}/{settings?.piecesPerPlayer ?? 4} home
-              </span>
-            </li>
-          ))}
-        </ul>
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
-          <input type="checkbox" checked={showRoutes} onChange={e => setShowRoutes(e.target.checked)} className="h-4 w-4 accent-[var(--red)]" />
-          Show where the character will land
-        </label>
-      </section>
+      <Standings
+        rows={seatsInPlay(game).map(seat => ({
+          key: String(seat),
+          name: nameOf(seat),
+          color: playerColor(seat, game.N),
+          home: homeCount(seat),
+          total: settings?.piecesPerPlayer ?? 4,
+          rank: ranking.includes(seat) ? ranking.indexOf(seat) + 1 : undefined,
+          active: seat === activeSeat && phase !== 'FINISHED',
+        }))}
+      />
+
+      <label className="panel flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-bold">
+        <input type="checkbox" checked={showRoutes} onChange={e => setShowRoutes(e.target.checked)} className="h-4 w-4 accent-[var(--brass)]" />
+        Show where the character will land
+      </label>
 
       <section className="panel p-4">
         <p className="panel-title mb-2">What happened</p>

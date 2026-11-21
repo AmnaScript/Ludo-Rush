@@ -103,7 +103,7 @@ export function GameStage({
   return (
     <div ref={root} className="table-bg fixed inset-0 z-30 flex">
       <div className="relative min-w-0 flex-1 p-2 sm:p-3">
-        <div className="relative h-full w-full overflow-hidden rounded-[22px] border-4 border-[var(--ink)] bg-[#2d1d12] shadow-[0_6px_0_var(--ink)]">
+        <div className="relative h-full w-full overflow-hidden rounded-[22px] border-4 border-[var(--ink)] bg-[#150e0a] shadow-[0_6px_0_var(--ink)]">
           {board}
 
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2.5 sm:p-3">
@@ -165,7 +165,7 @@ export function GameStage({
       {!wide && drawer && (
         <div className="table-bg absolute inset-0 z-20 flex flex-col">
           <div className="flex items-center justify-between p-3">
-            <p className="font-title text-xl text-[var(--paper)]">{sideLabel}</p>
+            <p className="font-title text-xl text-[var(--cream)]">{sideLabel}</p>
             <button type="button" className={iconBtn} onClick={() => setDrawer(false)} aria-label="Close">
               <X size={18} />
             </button>

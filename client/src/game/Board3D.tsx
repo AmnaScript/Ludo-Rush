@@ -69,7 +69,7 @@ export const Board3D = forwardRef<
     }, []);
 
     return (
-        <div className="relative h-full w-full overflow-hidden bg-[#2d1d12]">
+        <div className="relative h-full w-full overflow-hidden bg-[#150e0a]">
             <Canvas
                 shadows
                 dpr={[1, 1.5]}
