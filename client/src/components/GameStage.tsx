@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { Maximize2, Menu, Minimize2, PanelRightClose, PanelRightOpen, Volume2, VolumeX, X } from 'lucide-react';
 import { isMuted, play, setMuted, subscribeMute } from '../audio/sfx';
 import { useConnectionStore } from '../store/connectionStore';
+import { sideDockFor } from '../game/board3d/layoutMode';
 
 type FsDoc = Document & {
   webkitFullscreenElement?: Element | null;
@@ -42,7 +43,18 @@ export function GameStage({
   const [note, setNote] = useState<string | null>(null);
   const muted = useSyncExternalStore(subscribeMute, isMuted);
   const connected = useConnectionStore((s) => s.connected);
+  const boardBox = useRef<HTMLDivElement>(null);
+  const [sideDock, setSideDock] = useState(false);
   const [wide, setWide] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+
+  useEffect(() => {
+    const el = boardBox.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSideDock(sideDockFor(el.clientWidth, el.clientHeight)));
+    ro.observe(el);
+    setSideDock(sideDockFor(el.clientWidth, el.clientHeight));
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
@@ -103,7 +115,7 @@ export function GameStage({
   return (
     <div ref={root} className="table-bg fixed inset-0 z-30 flex">
       <div className="relative min-w-0 flex-1 p-2 sm:p-3">
-        <div className="relative h-full w-full overflow-hidden rounded-[22px] border-4 border-[var(--ink)] bg-[#150e0a] shadow-[0_6px_0_var(--ink)]">
+        <div ref={boardBox} className="relative h-full w-full overflow-hidden rounded-[22px] border-4 border-[var(--ink)] bg-[#150e0a] shadow-[0_6px_0_var(--ink)]">
           {board}
 
           <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-2 p-2.5 sm:p-3">
@@ -151,8 +163,12 @@ export function GameStage({
           )}
 
           {dock && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-3">
-              <div className="pointer-events-auto w-full max-w-[400px]">{dock}</div>
+            <div
+              className={`pointer-events-none absolute z-10 flex px-3 ${
+                sideDock ? 'bottom-4 left-1 justify-start' : 'inset-x-0 bottom-3 justify-center'
+              }`}
+            >
+              <div className="pointer-events-auto w-fit max-w-full">{dock}</div>
             </div>
           )}
         </div>
