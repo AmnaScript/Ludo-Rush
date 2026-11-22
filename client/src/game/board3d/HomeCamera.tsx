@@ -4,10 +4,11 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { type BoardLayout } from '../boardLayout';
 import { type CameraActions } from './types';
 import { screen, setScreenUp } from './screen';
+import { sideDockFor } from './layoutMode';
 
 const CANDIDATES: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-const TOP_BAR = 64; // px reserved for the title pills
-const DOCK = 118; // px reserved for the dice dock
+const TOP_BAR = 64; // px reserved for the title pills (narrow windows)
+const DOCK = 112; // px reserved for the dice dock (narrow windows)
 
 /**
  * Fixed top-down camera. The whole board is flat on screen, never tilts and
@@ -54,14 +55,17 @@ export function HomeCamera({
     useFrame(() => {
         const cam = camera as THREE.OrthographicCamera;
         const wide = size.width >= 1024;
-        const availH = Math.max(120, size.height - TOP_BAR - DOCK);
-        const availW = size.width - (wide ? 24 : 12);
-        const span = layout.mode === 'classic' ? 16.3 : layout.extent * 2 + 0.4;
+        const side = sideDockFor(size.width, size.height);
+        const top = side ? 6 : TOP_BAR;
+        const bottom = side ? 6 : DOCK;
+        const availH = Math.max(120, size.height - top - bottom);
+        const availW = size.width - (wide ? 12 : 8);
+        const span = layout.mode === 'classic' ? 15.85 : layout.extent * 2 + 0.4;
         const zoom = Math.min(availW, availH) / span;
 
         // Centre the board in the free area between the title pills and the dock.
         // Moving the look-at point up the screen pushes the board down.
-        const shiftPx = TOP_BAR + availH / 2 - size.height / 2;
+        const shiftPx = top + availH / 2 - size.height / 2;
         const k = shiftPx / zoom;
 
         cam.zoom = zoom;

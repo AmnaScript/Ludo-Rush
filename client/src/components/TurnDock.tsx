@@ -25,7 +25,7 @@ export function TurnDock({
   const showTimer = secondsLeft != null && yourTurn;
   const pct = showTimer && totalSeconds ? Math.max(0, Math.min(100, (secondsLeft! / totalSeconds) * 100)) : 0;
   return (
-    <div className="panel flex items-center gap-4 px-4 py-3" style={{ borderColor: canRoll ? 'var(--brass)' : undefined }}>
+    <div className="panel flex w-fit items-center gap-4 px-4 py-3" style={{ borderColor: canRoll ? 'var(--brass)' : undefined }}>
       <button
         type="button"
         disabled={!canRoll}
@@ -38,7 +38,7 @@ export function TurnDock({
         <RollingDice value={dice} rolling={rolling} size={52} />
       </button>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[8.5rem]">
         <p className="flex items-center gap-2 font-title text-xl uppercase leading-tight">
           <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 10px ${color}` }} />
           <span className="truncate">{who}</span>

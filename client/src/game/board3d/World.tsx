@@ -78,7 +78,7 @@ export function World({
         [game.pieces]
     );
     const seatColor = (seat: number) =>
-        inPlay.has(seat) ? playerColor(seat, game.N) : '#d8c79d';
+        inPlay.has(seat) ? playerColor(seat, game.N) : '#43322a';
 
     const legal = useMemo(
         () => new Set(validPieceIds),
@@ -225,14 +225,14 @@ export function World({
             {layout.mode === 'classic' ? (
                 <mesh position={[0, -0.53, 0]} receiveShadow castShadow>
                     <boxGeometry args={[14.7, 0.67, 14.7]} />
-                    <meshStandardMaterial color="#efdcae" roughness={0.85} />
+                    <meshStandardMaterial color="#2f211a" roughness={0.85} />
                 </mesh>
             ) : (
                 layout.star && (
                     <group position={[0, -0.53, 0]}>
                         <mesh receiveShadow castShadow>
                             <cylinderGeometry args={[layout.star.hub, layout.star.hub, 0.67, 48]} />
-                            <meshStandardMaterial color="#efdcae" roughness={0.85} />
+                            <meshStandardMaterial color="#2f211a" roughness={0.85} />
                         </mesh>
                         {layout.star.arms.map((arm, i) => (
                             <mesh
@@ -243,7 +243,7 @@ export function World({
                                 castShadow
                             >
                                 <boxGeometry args={[arm.length, 0.67, arm.width]} />
-                                <meshStandardMaterial color="#efdcae" roughness={0.85} />
+                                <meshStandardMaterial color="#2f211a" roughness={0.85} />
                             </mesh>
                         ))}
                     </group>
@@ -275,7 +275,7 @@ export function World({
                     >
                         <boxGeometry args={[5.25, 0.10, 5.25]} />
                         <meshStandardMaterial
-                            color={inPlay.has(seat) ? playerColor(seat, game.N) : '#d8c79d'}
+                            color={inPlay.has(seat) ? playerColor(seat, game.N) : '#43322a'}
                         />
                     </mesh>
                 ))}

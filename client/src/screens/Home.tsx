@@ -48,7 +48,7 @@ export function Home({ onLocal }: { onLocal: () => void }) {
 
   return (
     <div className="table-bg fixed inset-0 z-30 overflow-y-auto">
-      <div className="mx-auto flex min-h-full max-w-xl flex-col items-center px-4 py-8 sm:py-12">
+      <div className={`mx-auto flex min-h-full max-w-xl ${step === "create" ? "!max-w-4xl" : ""} flex-col items-center px-4 py-8 sm:py-12`}>
         {/* title lockup */}
         <div className="text-center">
           <h1 className="font-title text-[64px] leading-[0.9] sm:text-[88px]" style={{ WebkitTextStroke: '3px var(--ink)', paintOrder: 'stroke fill', textShadow: '0 6px 0 var(--ink)' }}>

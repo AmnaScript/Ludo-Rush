@@ -24,7 +24,7 @@ export function Home({
     compact: boolean;
     label?: string;
 }) {
-    const light = useMemo(() => '#' + new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.42).getHexString(), [color]);
+    const light = useMemo(() => '#' + new THREE.Color(color).lerp(new THREE.Color('#ffffff'), 0.3).getHexString(), [color]);
     const dark = useMemo(() => '#' + new THREE.Color(color).multiplyScalar(0.72).getHexString(), [color]);
     const panel = compact ? 2.2 : 3.9;
 

@@ -49,7 +49,7 @@ export function Lobby() {
               <p className="panel-title">Players</p>
               <span className="badge badge-amber">{count}/{ROOM_LIMITS.maxPlayers} ready to play</span>
             </div>
-            <ul className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <ul className="mt-3 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(7.5rem,1fr))]">
               {Array.from({ length: ROOM_LIMITS.maxPlayers }, (_, i) => {
                 const p = snapshot.players[i];
                 const color = SEAT_COLORS[i % 4]!;
@@ -63,8 +63,8 @@ export function Lobby() {
                   );
                 }
                 return (
-                  <li key={p.id} className="flex flex-col items-center rounded-2xl bg-[var(--paper-2)] px-3 py-3 text-center" style={{ boxShadow: `inset 0 3px 0 ${color}` }}>
-                    <span className="flex w-full items-center justify-between">
+                  <li key={p.id} className="flex min-w-0 flex-col items-center overflow-hidden rounded-2xl bg-[var(--paper-2)] px-3 py-3 text-center" style={{ boxShadow: `inset 0 3px 0 ${color}` }}>
+                    <span className="flex w-full flex-wrap items-center justify-between gap-1">
                       <span className="label" style={{ color }}>{SEAT_NAMES[i]}</span>
                       {p.isHost ? <span className="badge badge-amber">Host</span> : p.isBot ? <span className="badge">Bot</span> : p.connected ? <span className="badge badge-green">Online</span> : <span className="badge badge-red">Offline</span>}
                     </span>
