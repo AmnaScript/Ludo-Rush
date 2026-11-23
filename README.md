@@ -28,6 +28,7 @@ Open the client in two or more browser tabs: create a room in one, join with the
 - **2 to 4 players** on the classic cross board.
 - **Difficulty:** Easy (relaxed: no exact number needed to finish, three sixes allowed), Medium (classic), Hard (skip a possible capture and your own capturing character goes home, pairs not protected). In every mode a character leaves base only on a 6 (one character per 6), and the start tiles and the starred stop on each side are safe. Rules live in `shared/src/rules.ts` (`difficultyOverrides`) and are shown in-game.
 - **One-screen play:** board fills the window, dice dock floats on it, full screen button (F key). If the browser blocks full screen (e.g. VS Code's Simple Browser) it falls back to a hide-the-panel focus mode; open the game in Chrome/Edge for real full screen.
+- **Play vs computer:** the home screen has a single-player mode (you against 1-3 computers) that runs entirely in the browser.
 - **Turn timer, bots and reconnect:** timeouts auto-play, disconnected players are covered, and after 60 s a bot takes the seat. Reloading the page rejoins the same seat (token in localStorage).
 - **Chat:** live next to the board, system messages for joins, captures and finishes, 200-character limit, 1 message/second, rendered as plain text.
 - **One-device mode:** pass-and-play on a single screen.

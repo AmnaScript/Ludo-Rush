@@ -9,7 +9,8 @@ import {
 import {
   DIFFICULTY_INFO,
   applyMove,
-    createArenaGame,
+  chooseBotMove,
+  createArenaGame,
   type Difficulty,
   finalRanking,
   isGameOver,
@@ -80,7 +81,11 @@ export function LocalGame({
   const seatsRef = useRef<number[]>([0, 1, 2, 3]);
   const [rolling, setRolling] = useState(false);
 
-  const nameOf = useCallback((seat: number) => COLOR_NAMES[seat] ?? `Player ${seat + 1}`, []);
+  const nameOf = useCallback((seat: number) => {
+    if (seat === seatsRef.current[0]) return 'You';
+    return `Computer (${COLOR_NAMES[seat] ?? `Player ${seat + 1}`})`;
+  }, []);
+  const isYou = (seat: number) => seat === seatsRef.current[0];
 
   const [playerCount, setPlayerCount] =
     useState(4);
@@ -108,7 +113,7 @@ export function LocalGame({
 
   const [activity, setActivity] =
     useState<string[]>([
-      'Welcome to the new Ludo Rush arena.',
+      'Welcome to Ludo Rush.',
     ]);
 
   const boardRef =
@@ -136,8 +141,10 @@ export function LocalGame({
     : {};
   const activeSeat = game?.turnSeat ?? 0;
 
-  // The board never turns between players.
-  const viewSeat = 0;
+  // The board never turns; your home is always bottom-left.
+  const humanSeat = seatsRef.current[0] ?? 0;
+  const viewSeat = humanSeat;
+  const yourTurn = activeSeat === humanSeat;
 
   const log = useCallback(
     (message: string) => {
@@ -204,8 +211,8 @@ export function LocalGame({
     setPhase('ROLL');
 
     setActivity([
-      `${playerCount} players, ${DIFFICULTY_INFO[difficulty].label} mode.`,
-      `${nameOf(arena.seats[0]!)} rolls first.`,
+      `You vs ${playerCount - 1} computer${playerCount > 2 ? 's' : ''}, ${DIFFICULTY_INFO[difficulty].label} mode.`,
+      'You roll first.',
     ]);
 
     boardRef.current?.resetView();
@@ -239,6 +246,9 @@ export function LocalGame({
     const settings = settingsRef.current;
 
     if (!current || !settings) return;
+
+    // A roll is already waiting for a move: never roll again on top of it.
+    if (current.dice !== null) return;
 
     busyRef.current = true;
     setRolling(true);
@@ -378,12 +388,12 @@ export function LocalGame({
         setPhase('FINISHED');
 
         log(
-          `🏆 ${nameOf(finalRanks[0])} wins!`
+          `🏆 ${nameOf(finalRanks[0])} ${isYou(finalRanks[0]) ? 'win' : 'wins'}!`
         );
       } else {
         if (result.extraTurn) {
           log(
-            `${nameOf(next.turnSeat)} gets another turn!`
+            `${nameOf(next.turnSeat)} ${isYou(next.turnSeat) ? 'get' : 'gets'} another turn!`
           );
         }
 
@@ -462,6 +472,36 @@ export function LocalGame({
   );
   choosePieceRef.current = choosePiece;
 
+  // Only you can tap characters; the computer plays its own turns.
+  const pickByHuman = (id: string) => {
+    const current = gameRef.current;
+    if (!current || current.turnSeat !== seatsRef.current[0]) return;
+    void choosePiece(id);
+  };
+
+  const rollByHuman = () => {
+    const current = gameRef.current;
+    if (!current || current.turnSeat !== seatsRef.current[0]) return;
+    rollDice();
+  };
+
+  // Computer turns: roll, then pick a move after a short beat.
+  useEffect(() => {
+    if (!game || game.turnSeat === seatsRef.current[0]) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    if (phase === 'ROLL') {
+      t = setTimeout(() => rollDice(), 800);
+    } else if (phase === 'CHOOSE' && legalIds.length > 1 && settingsRef.current) {
+      const settings = settingsRef.current;
+      t = setTimeout(() => {
+        const cur = gameRef.current;
+        if (!cur || !mountedRef.current) return;
+        void choosePieceRef.current(chooseBotMove(cur, settings, legalRef.current));
+      }, 1000);
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [phase, game, legalIds, rolling]);
+
   const homeCount = (seat: number) => {
     if (!game) return 0;
 
@@ -481,7 +521,7 @@ export function LocalGame({
       <div className="table-bg fixed inset-0 z-30 overflow-y-auto">
         <div className="mx-auto max-w-5xl px-4 py-8">
           <div className="mb-5 flex items-center justify-between">
-            <h1 className="font-title text-4xl text-[var(--cream)] drop-shadow-[0_3px_0_var(--ink)]">New game</h1>
+            <h1 className="font-title text-4xl text-[var(--cream)] drop-shadow-[0_3px_0_var(--ink)]">You vs computer</h1>
             <button onClick={onExit} className="btn btn-paper btn-small">Back</button>
           </div>
 
@@ -495,10 +535,10 @@ export function LocalGame({
 
             <section className="panel space-y-5 p-5">
               <div>
-                <p className="label">Players on this device</p>
+                <p className="label">Computer opponents</p>
                 <div className="mt-2 flex gap-2">
-                  {[2, 3, 4].map(n => (
-                    <button key={n} aria-pressed={playerCount === n} onClick={() => setPlayerCount(n)} className="chip flex-1 text-xl">
+                  {[1, 2, 3].map(n => (
+                    <button key={n} aria-pressed={playerCount === n + 1} onClick={() => setPlayerCount(n + 1)} className="chip flex-1 text-xl">
                       {n}
                     </button>
                   ))}
@@ -531,11 +571,11 @@ export function LocalGame({
     phase === 'FINISHED' ? undefined : (
       <TurnDock
         color={playerColor(activeSeat, game.N)}
-        who={`${nameOf(activeSeat)}'s turn`}
+        who={yourTurn ? 'Your turn' : `${nameOf(activeSeat)}'s turn`}
         dice={dice}
         rolling={rolling}
-        canRoll={phase === 'ROLL'}
-        onRoll={rollDice}
+        canRoll={phase === 'ROLL' && yourTurn}
+        onRoll={rollByHuman}
       />
     );
 
@@ -560,12 +600,12 @@ export function LocalGame({
         </section>
       )}
 
-      {phase === 'CHOOSE' && legalIds.length > 1 && (
+      {phase === 'CHOOSE' && yourTurn && legalIds.length > 1 && (
         <section className="panel p-4">
           <p className="panel-title mb-2">Or pick here</p>
           <div className="flex flex-wrap gap-2">
             {legalIds.map(id => (
-              <button key={id} onClick={() => choosePiece(id)} className="btn btn-small">
+              <button key={id} onClick={() => pickByHuman(id)} className="btn btn-small">
                 Move character {Number(id.split('-p')[1] ?? 0) + 1}
               </button>
             ))}
@@ -606,15 +646,15 @@ export function LocalGame({
   return (
     <GameStage
       color={playerColor(activeSeat, game.N)}
-      title={phase === 'FINISHED' ? 'Game over' : `${nameOf(activeSeat)}'s turn`}
+      title={phase === 'FINISHED' ? 'Game over' : yourTurn ? 'Your turn' : `${nameOf(activeSeat)}'s turn`}
       subtitle={`${DIFFICULTY_INFO[settings?.difficulty ?? 'MEDIUM'].label} mode`}
       board={
         <Board3D
           ref={boardRef}
           game={visibleGame!}
           seatLabels={seatLabels}
-          validPieceIds={legalIds}
-          onPieceClick={choosePiece}
+          validPieceIds={yourTurn ? legalIds : []}
+          onPieceClick={pickByHuman}
           showRoutes
           viewSeat={viewSeat}
           starsPerSegment={settings?.starTilesPerSegment ?? 1}

@@ -71,7 +71,7 @@ export function Home({ onLocal }: { onLocal: () => void }) {
               <button className="btn btn-red w-full !py-4 text-2xl" onClick={() => go('create')}>Create a room</button>
               <button className="btn btn-blue w-full !py-4 text-2xl" onClick={() => go('join')}>Join with a code</button>
               <button className="btn btn-paper w-full !py-3 text-lg" onClick={onLocal}>
-                Play on this device
+                Play vs computer
               </button>
               {!connected && (
                 <p className="text-center text-sm font-bold text-[var(--ink-soft)]">
