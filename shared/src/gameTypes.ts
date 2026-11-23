@@ -4,7 +4,7 @@
 export type CaptureStyle = 'GUN' | 'SLAP' | 'DOG';
 export type Weapon = 'PISTOL' | 'RIFLE';
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
-export type EntryRule = 'SIX' | 'ONE_OR_SIX' | 'ANY';
+export type EntryRule = 'SIX' | 'ANY';
 
 export interface GameSettings {
     difficulty: Difficulty;

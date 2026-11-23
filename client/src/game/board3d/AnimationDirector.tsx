@@ -7,7 +7,7 @@ import { type CaptureStyle, type MoveJob, type FXState, type ActorRegistry } fro
 import { SCENE, ramp, sceneSeconds } from './scenes';
 import { screen } from './screen';
 import { play } from '../../audio/sfx';
-import { vec, place, moveBetween, faceToward, faceSide, smooth, timeScale } from './helpers';
+import { vec, place, moveBetween, faceToward, faceSide, smooth } from './helpers';
 
 export function AnimationDirector({
     game,
@@ -28,7 +28,7 @@ export function AnimationDirector({
         const job = jobRef.current;
         if (!job) return;
 
-        const delta = Math.min(deltaRaw, 0.06) * timeScale();
+        const delta = Math.min(deltaRaw, 0.06);
         const attacker = actors.current.get(job.move.pieceId);
 
         if (!attacker) {

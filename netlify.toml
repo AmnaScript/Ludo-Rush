@@ -1,0 +1,12 @@
+# Frontend on Netlify (free). Set VITE_SERVER_URL in Site settings -> Environment variables.
+[build]
+  command = "npm install && npm run build -w @ludo-rush/client"
+  publish = "client/dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

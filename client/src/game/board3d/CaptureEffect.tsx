@@ -6,7 +6,6 @@ import { type ActorRegistry, type FXState } from './types';
 import { GAME_FONT } from './constants';
 import { Flat } from './Upright';
 import { screen } from './screen';
-import { timeScale } from './helpers';
 import { SCENE, ramp } from './scenes';
 
 const basic = (c: string, extra?: { opacity?: number }) => (
@@ -91,7 +90,7 @@ export function CaptureEffect({ effect, actors }: { effect: FXState | null; acto
     }, [effect]);
 
     useFrame(({ clock: c }, deltaRaw) => {
-        acc.current += Math.min(deltaRaw, 0.06) * timeScale();
+        acc.current += Math.min(deltaRaw, 0.06);
         const all = [word, word2, burst, flash, swoosh, hand, stars, bullet, smoke, whistle, waves, lock, warn];
         const vis = (r: React.MutableRefObject<THREE.Group | null>, on: boolean) => {
             if (r.current) r.current.visible = on;

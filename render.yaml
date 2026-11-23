@@ -1,0 +1,14 @@
+# Game server on Render (free web service). Set CLIENT_ORIGIN to your Netlify address.
+services:
+  - type: web
+    name: ludo-rush-server
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run start -w @ludo-rush/server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: CLIENT_ORIGIN
+        sync: false

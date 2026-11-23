@@ -61,8 +61,3 @@ export function smooth(t: number): number {
     return x * x * (3 - 2 * x);
 }
 
-/** Test hook: set window.__ludoTimeScale = 0.2 in the console to watch the scenes in slow motion. */
-export function timeScale(): number {
-    const v = (window as unknown as { __ludoTimeScale?: number }).__ludoTimeScale;
-    return typeof v === 'number' && v > 0 ? v : 1;
-}
