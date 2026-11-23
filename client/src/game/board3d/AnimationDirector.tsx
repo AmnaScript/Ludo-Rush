@@ -140,7 +140,7 @@ export function AnimationDirector({
                 const dz = job.attackerFrom[2] - job.victimFrom[2];
                 const rightOf = dx * screen.right.x + dz * screen.right.z;
                 let sideSign = rightOf > 0.05 ? 1 : -1;
-                const gap = SCENE[style].gap;
+                const gap = SCENE[style].gap / screen.stretch; // a screen distance; the board is stretched
                 // keep the whole scene on the board: if that side runs off the edge, use the other
                 const reach = (sign: number) => {
                     const x = job.victimFrom![0] + screen.right.x * sign * gap;
@@ -205,7 +205,7 @@ export function AnimationDirector({
                 const S = SCENE.SLAP;
                 // 1. step in (0-.16)  2. wind up  3. lunge + slap at S.hit  4. victim flies home
                 const lunge = smooth(ramp(t, S.hit - 0.12, S.hit)) * (1 - smooth(ramp(t, S.hit + 0.04, S.hit + 0.2)));
-                const g = gap0 + (S.lunge - gap0) * lunge;
+                const g = gap0 + (S.lunge / screen.stretch - gap0) * lunge;
                 const pos = t < 0.16
                     ? ([
                           from[0] + (stage[0] - from[0]) * slide,
@@ -224,7 +224,7 @@ export function AnimationDirector({
                     // knocked back, dizzy
                     victim.action = 'panic';
                     const k = smooth(ramp(t, S.hit, S.hit + 0.18));
-                    victim.root.position.set(start[0] + awayX * 0.7 * k, 0, start[2] + awayZ * 0.7 * k);
+                    victim.root.position.set(start[0] + awayX * (0.7 / screen.stretch) * k, 0, start[2] + awayZ * (0.7 / screen.stretch) * k);
                 } else {
                     victim.action = 'run';
                     const cur = vec(victim.root.position);
@@ -242,7 +242,7 @@ export function AnimationDirector({
                           0,
                           from[2] + (stage[2] - from[2]) * slide,
                       ] as Vec3)
-                    : attackerAt(gap0 + (t > G.fire && t < G.fire + 0.1 ? 0.18 : 0));
+                    : attackerAt(gap0 + (t > G.fire && t < G.fire + 0.1 ? 0.18 / screen.stretch : 0));
                 place(attacker.root, pos);
                 faceSide(attacker.root, pos, start);
                 attacker.action = t < 0.16 ? 'walk' : t < G.hit + 0.28 ? 'shoot' : 'idle';
@@ -253,7 +253,7 @@ export function AnimationDirector({
                 } else {
                     victim.action = 'fall';
                     const back = smooth(ramp(t, G.hit, G.hit + 0.15));
-                    victim.root.position.set(start[0] + awayX * 0.5 * back, 0, start[2] + awayZ * 0.5 * back);
+                    victim.root.position.set(start[0] + awayX * (0.5 / screen.stretch) * back, 0, start[2] + awayZ * (0.5 / screen.stretch) * back);
                     if (t > G.hit + 0.22) {
                         victim.root.scale.setScalar(Math.max(0.015, grow * (1 - ramp(t, G.hit + 0.22, G.hit + 0.5))));
                     }
@@ -310,7 +310,7 @@ export function AnimationDirector({
                         const dx = vp[0] - home[0];
                         const dz = vp[2] - home[2];
                         const len = Math.hypot(dx, dz) || 1;
-                        place(dog, [vp[0] + (dx / len) * 0.9, 0, vp[2] + (dz / len) * 0.9]);
+                        place(dog, [vp[0] + (dx / len) * (0.9 / screen.stretch), 0, vp[2] + (dz / len) * (0.9 / screen.stretch)]);
                         faceToward(dog, vec(dog.position), home);
                     }
                 }

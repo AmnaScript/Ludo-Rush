@@ -110,7 +110,7 @@ export const Board3D = forwardRef<
                 return (
                     <div
                         aria-live="polite"
-                        className="pointer-events-none absolute left-1/2 top-16 z-10 w-[min(92%,520px)] -translate-x-1/2 rounded-2xl border-4 border-white bg-[#ffcc32] px-5 py-3 text-center shadow-2xl"
+                        className="pointer-events-none absolute left-1/2 top-[78px] z-10 w-[min(92%,520px)] -translate-x-1/2 rounded-2xl border-4 border-white bg-[#ffcc32] px-5 py-3 text-center shadow-2xl"
                     >
                         <p className="text-xl font-black text-[#253747] sm:text-2xl">
                             {emoji} {headline}

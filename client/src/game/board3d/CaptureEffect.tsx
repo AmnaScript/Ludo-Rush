@@ -5,7 +5,7 @@ import { Text } from '@react-three/drei';
 import { type ActorRegistry, type FXState } from './types';
 import { GAME_FONT } from './constants';
 import { Flat } from './Upright';
-import { screen } from './screen';
+import { counterScale, screen } from './screen';
 import { timeScale } from './helpers';
 import { SCENE, ramp } from './scenes';
 
@@ -113,8 +113,9 @@ export function CaptureEffect({ effect, actors }: { effect: FXState | null; acto
         const U = screen.up;
         const put = (g: THREE.Object3D | null, p: THREE.Vector3, dx: number, h: number) => {
             if (!g) return;
-            g.position.x = p.x + R.x * dx * K + U.x * h * K;
-            g.position.z = p.z + R.z * dx * K + U.z * h * K;
+            const dxs = (dx * K) / screen.stretch; // offsets are screen distances, the board is stretched
+            g.position.x = p.x + R.x * dxs + U.x * h * K;
+            g.position.z = p.z + R.z * dxs + U.z * h * K;
         };
         const mid = new THREE.Vector3().addVectors(a, v).multiplyScalar(0.5);
         const side = (v.x - a.x) * R.x + (v.z - a.z) * R.z >= 0 ? 1 : -1; // attacker -> victim, on screen
@@ -129,12 +130,12 @@ export function CaptureEffect({ effect, actors }: { effect: FXState | null; acto
         if (ringA.current) {
             ringA.current.visible = effect.style !== 'PENALTY';
             ringA.current.position.set(a.x, 0.32, a.z);
-            ringA.current.scale.setScalar(1 + Math.sin(c.elapsedTime * 8) * 0.06);
+            { const [cx, , cz] = counterScale(); const k = 1 + Math.sin(c.elapsedTime * 8) * 0.06; ringA.current.scale.set(cx * k, cz * k, k); }
         }
         if (ringV.current) {
             ringV.current.visible = true;
             ringV.current.position.set(v.x, 0.32, v.z);
-            ringV.current.scale.setScalar(1 + Math.sin(c.elapsedTime * 8 + 1) * 0.06);
+            { const [cx, , cz] = counterScale(); const k = 1 + Math.sin(c.elapsedTime * 8 + 1) * 0.06; ringV.current.scale.set(cx * k, cz * k, k); }
         }
 
         all.forEach(r => vis(r, false));

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } fro
 import { Maximize2, Menu, Minimize2, PanelRightClose, PanelRightOpen, Volume2, VolumeX, X } from 'lucide-react';
 import { isMuted, play, setMuted, subscribeMute } from '../audio/sfx';
 import { useConnectionStore } from '../store/connectionStore';
-import { sideDockFor } from '../game/board3d/layoutMode';
+import { WideContext, wideFor } from '../game/board3d/layoutMode';
 
 type FsDoc = Document & {
   webkitFullscreenElement?: Element | null;
@@ -50,9 +50,9 @@ export function GameStage({
   useEffect(() => {
     const el = boardBox.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setSideDock(sideDockFor(el.clientWidth, el.clientHeight)));
+    const ro = new ResizeObserver(() => setSideDock(wideFor(el.clientWidth, el.clientHeight)));
     ro.observe(el);
-    setSideDock(sideDockFor(el.clientWidth, el.clientHeight));
+    setSideDock(wideFor(el.clientWidth, el.clientHeight));
     return () => ro.disconnect();
   }, []);
 
@@ -165,10 +165,12 @@ export function GameStage({
           {dock && (
             <div
               className={`pointer-events-none absolute z-10 flex px-3 ${
-                sideDock ? 'bottom-4 left-1 justify-start' : 'inset-x-0 bottom-3 justify-center'
+                sideDock ? 'left-1/2 top-2.5 -translate-x-1/2' : 'inset-x-0 bottom-3 justify-center'
               }`}
             >
-              <div className="pointer-events-auto w-fit max-w-full">{dock}</div>
+              <div className="pointer-events-auto w-fit max-w-full">
+                <WideContext.Provider value={sideDock}>{dock}</WideContext.Provider>
+              </div>
             </div>
           )}
         </div>

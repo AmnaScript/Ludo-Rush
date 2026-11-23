@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Outlines } from '@react-three/drei';
-import { Upright } from './Upright';
+import { Upright, WorldCounter } from './Upright';
 import { type GameState, type Piece } from '@ludo-rush/shared';
 import { playerColor, type Vec3 } from '../boardLayout';
 import { type ActorRegistry } from './types';
@@ -195,6 +195,7 @@ export function Character({
 
     return (
         <group ref={root} position={position}>
+            <WorldCounter>
             <mesh position={[0, 0.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
                 <circleGeometry args={[0.34 * scale, 20]} />
                 <meshBasicMaterial color="#000000" transparent opacity={0.28} depthWrite={false} />
@@ -205,6 +206,8 @@ export function Character({
                     <meshBasicMaterial color="#ffb800" side={THREE.DoubleSide} toneMapped={false} />
                 </mesh>
             )}
+
+            </WorldCounter>
 
             <Upright>
             <group scale={scale}>

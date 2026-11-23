@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { useRef, type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Outlines } from '@react-three/drei';
-import { Upright } from './Upright';
+import { Upright, WorldCounter } from './Upright';
 
 const FUR = '#e8a24f';
 const FUR_LIGHT = '#f7cf93';
@@ -36,10 +36,12 @@ export function CartoonDog({
             }}
             visible={false}
         >
-            <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <circleGeometry args={[0.5, 16]} />
-                <meshBasicMaterial color="#000" transparent opacity={0.25} depthWrite={false} />
-            </mesh>
+            <WorldCounter>
+                <mesh position={[0, 0.27, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                    <circleGeometry args={[0.5, 16]} />
+                    <meshBasicMaterial color="#000" transparent opacity={0.25} depthWrite={false} />
+                </mesh>
+            </WorldCounter>
             <Upright>
                 <group scale={1.15}>
                     {/* body */}

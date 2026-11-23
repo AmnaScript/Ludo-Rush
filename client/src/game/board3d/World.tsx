@@ -7,6 +7,7 @@ import { Tile } from './Tile';
 import { Home } from './Home';
 import { Character } from './Character';
 import { CartoonDog } from './CartoonDog';
+import { Stretch } from './Upright';
 import { CaptureEffect } from './CaptureEffect';
 import { HomeCamera } from './HomeCamera';
 import { AnimationDirector } from './AnimationDirector';
@@ -189,10 +190,10 @@ export function World({
                 intensity={1.6}
                 castShadow
                 shadow-mapSize={[2048, 2048]}
-                shadow-camera-left={-14}
-                shadow-camera-right={14}
-                shadow-camera-top={14}
-                shadow-camera-bottom={-14}
+                shadow-camera-left={-34}
+                shadow-camera-right={34}
+                shadow-camera-top={34}
+                shadow-camera-bottom={-34}
             />
 
             <HomeCamera
@@ -205,6 +206,8 @@ export function World({
                 }
                 actions={cameraActions}
             />
+
+            <Stretch>
 
             {layout.mode === 'classic' && (
                 <group position={[0, -0.4, 0]}>
@@ -402,6 +405,7 @@ export function World({
                 dogRef={dogRef}
                 setEffect={setEffect}
             />
+            </Stretch>
         </>
     );
 }

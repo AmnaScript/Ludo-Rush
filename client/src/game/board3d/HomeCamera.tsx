@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { type BoardLayout } from '../boardLayout';
 import { type CameraActions } from './types';
 import { screen, setScreenUp } from './screen';
-import { sideDockFor } from './layoutMode';
+import { STRIP, wideFor } from './layoutMode';
 
 const CANDIDATES: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 const TOP_BAR = 64; // px reserved for the title pills (narrow windows)
@@ -54,17 +54,17 @@ export function HomeCamera({
 
     useFrame(() => {
         const cam = camera as THREE.OrthographicCamera;
-        const wide = size.width >= 1024;
-        const side = sideDockFor(size.width, size.height);
-        const top = side ? 6 : TOP_BAR;
-        const bottom = side ? 6 : DOCK;
+        const wideMode = wideFor(size.width, size.height);
+        const top = wideMode ? STRIP : TOP_BAR;
+        const bottom = wideMode ? 8 : DOCK;
         const availH = Math.max(120, size.height - top - bottom);
-        const availW = size.width - (wide ? 12 : 8);
+        const availW = size.width - 8;
         const span = layout.mode === 'classic' ? 15.85 : layout.extent * 2 + 0.4;
         const zoom = Math.min(availW, availH) / span;
+        // a wide window: stretch the board sideways so it fills the whole wooden area
+        screen.stretch = layout.mode === 'classic' ? Math.min(2.6, Math.max(1, availW / availH)) : 1;
 
-        // Centre the board in the free area between the title pills and the dock.
-        // Moving the look-at point up the screen pushes the board down.
+        // Centre the board in the free area; moving the look-at point up the screen pushes it down.
         const shiftPx = top + availH / 2 - size.height / 2;
         const k = shiftPx / zoom;
 

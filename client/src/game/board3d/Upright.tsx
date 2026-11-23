@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { useRef, type ReactNode } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { screen, screenDown } from './screen';
+import { counterScale, screen, screenDown } from './screen';
 
 const Y = new THREE.Vector3(0, 1, 0);
 const TILT = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
@@ -10,9 +10,11 @@ const tmp = new THREE.Quaternion();
 /** Puts a flat group on the board so it reads upright on the screen (no depth). */
 export function Flat({ children, y = 6, gref }: { children?: ReactNode; y?: number; gref?: (g: THREE.Group | null) => void }) {
     const ref = useRef<THREE.Group | null>(null);
+    const inner = useRef<THREE.Group>(null);
     useFrame(() => {
         const g = ref.current;
         if (!g) return;
+        inner.current?.scale.set(1 / screen.stretch, 1, 1);
         g.quaternion.setFromAxisAngle(Y, screen.yaw).multiply(TILT);
         g.position.y = y;
     });
@@ -23,7 +25,7 @@ export function Flat({ children, y = 6, gref }: { children?: ReactNode; y?: numb
                 gref?.(node);
             }}
         >
-            {children}
+            <group ref={inner}>{children}</group>
         </group>
     );
 }
@@ -44,6 +46,7 @@ export function Upright({ children }: { children: ReactNode }) {
         const parent = t?.parent;
         if (!t || !f || !parent) return;
 
+        t.scale.set(1 / screen.stretch, 1, 0.07);
         t.quaternion.setFromAxisAngle(Y, screen.yaw);
         tmp.copy(TILT);
         t.quaternion.multiply(tmp);
@@ -57,8 +60,28 @@ export function Upright({ children }: { children: ReactNode }) {
     });
 
     return (
-        <group ref={tilt} scale={[1, 1, 0.07]}>
+        <group ref={tilt}>
             <group ref={face}>{children}</group>
         </group>
     );
+}
+
+/** Keeps flat round things (rings, shadows) round while the board is stretched. */
+export function WorldCounter({ children }: { children: ReactNode }) {
+    const g = useRef<THREE.Group>(null);
+    useFrame(() => {
+        const [x, y, z] = counterScale();
+        g.current?.scale.set(x, y, z);
+    });
+    return <group ref={g}>{children}</group>;
+}
+
+/** Stretches the board (and everything standing on it) to fill a wide window. */
+export function Stretch({ children }: { children: ReactNode }) {
+    const g = useRef<THREE.Group>(null);
+    useFrame(() => {
+        const k = screen.stretch;
+        g.current?.scale.set(Math.abs(screen.right.x) > 0.5 ? k : 1, 1, Math.abs(screen.right.z) > 0.5 ? k : 1);
+    });
+    return <group ref={g}>{children}</group>;
 }

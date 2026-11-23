@@ -10,6 +10,8 @@ export const screen = {
     right: new THREE.Vector3(1, 0, 0),
     /** Rotation about Y that maps (0,0,-1) onto `up`. */
     yaw: 0,
+    /** The board is stretched this much along the screen-right axis to fill a wide window. */
+    stretch: 1,
 };
 
 export function setScreenUp(ux: number, uz: number) {
@@ -31,4 +33,10 @@ export function onScreen(p: Vec3, dx: number, h: number, y = 6): Vec3 {
         y,
         p[2] + screen.right.z * dx + screen.up.z * h,
     ];
+}
+
+/** Counter-scale (in world axes) that cancels the board stretch for flat things like rings. */
+export function counterScale(): [number, number, number] {
+    const k = 1 / screen.stretch;
+    return [Math.abs(screen.right.x) > 0.5 ? k : 1, 1, Math.abs(screen.right.z) > 0.5 ? k : 1];
 }
