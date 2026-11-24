@@ -53,11 +53,11 @@ export function difficultyOverrides(
         case 'EASY':
             return {
                 difficulty,
-                entryRule: 'ONE_OR_SIX',
+                entryRule: 'SIX',
                 exactFinishRoll: false,
                 threeSixesRule: false,
                 squadsProtected: true,
-                starTilesPerSegment: 2,
+                starTilesPerSegment: 1,
                 missedCapturePenalty: false,
             };
         case 'HARD':
@@ -67,7 +67,7 @@ export function difficultyOverrides(
                 exactFinishRoll: true,
                 threeSixesRule: true,
                 squadsProtected: false,
-                starTilesPerSegment: 0,
+                starTilesPerSegment: 1,
                 missedCapturePenalty: true,
             };
         default:
@@ -124,7 +124,7 @@ export function validateSettings(
     }
 
     if (
-        !['SIX', 'ONE_OR_SIX', 'ANY'].includes(
+        !['SIX', 'ANY'].includes(
             settings.entryRule
         )
     ) {
@@ -194,10 +194,6 @@ export function canLeaveBase(
 ): boolean {
     if (rule === 'ANY') {
         return true;
-    }
-
-    if (rule === 'ONE_OR_SIX') {
-        return dice === 1 || dice === 6;
     }
 
     return dice === 6;

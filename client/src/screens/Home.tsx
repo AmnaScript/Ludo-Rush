@@ -1,3 +1,4 @@
+import { CLASSIC_COLORS } from '../game/boardLayout';
 import { useState } from 'react';
 import { ROOM_LIMITS, type Difficulty } from '@ludo-rush/shared';
 import { DifficultyPicker } from '../components/DifficultyPicker';
@@ -7,7 +8,7 @@ import { useConnectionStore } from '../store/connectionStore';
 import { useRoomStore } from '../store/roomStore';
 
 type Step = 'menu' | 'create' | 'join';
-const COLORS = ['#d93a2f', '#2f6bd8', '#f2b81c', '#2a9d57'];
+const COLORS = CLASSIC_COLORS;
 
 export function Home({ onLocal }: { onLocal: () => void }) {
   const connected = useConnectionStore((s) => s.connected);
@@ -47,7 +48,7 @@ export function Home({ onLocal }: { onLocal: () => void }) {
 
   return (
     <div className="table-bg fixed inset-0 z-30 overflow-y-auto">
-      <div className="mx-auto flex min-h-full max-w-xl flex-col items-center px-4 py-8 sm:py-12">
+      <div className={`mx-auto flex min-h-full max-w-xl ${step === "create" ? "!max-w-4xl" : ""} flex-col items-center px-4 py-8 sm:py-12`}>
         {/* title lockup */}
         <div className="text-center">
           <h1 className="font-title text-[64px] leading-[0.9] sm:text-[88px]" style={{ WebkitTextStroke: '3px var(--ink)', paintOrder: 'stroke fill', textShadow: '0 6px 0 var(--ink)' }}>
@@ -55,7 +56,7 @@ export function Home({ onLocal }: { onLocal: () => void }) {
             <br />
             <span style={{ color: 'var(--yellow)' }}>RUSH</span>
           </h1>
-          <p className="mt-4 font-extrabold text-[var(--paper)]">Shoot. Slap. Sic the dog. Get home first.</p>
+          <p className="mt-4 font-extrabold text-[var(--cream)]">Shoot. Slap. Sic the dog. Get home first.</p>
         </div>
 
         <div className="mt-6 flex items-end justify-center gap-1 sm:gap-3">
@@ -70,7 +71,7 @@ export function Home({ onLocal }: { onLocal: () => void }) {
               <button className="btn btn-red w-full !py-4 text-2xl" onClick={() => go('create')}>Create a room</button>
               <button className="btn btn-blue w-full !py-4 text-2xl" onClick={() => go('join')}>Join with a code</button>
               <button className="btn btn-paper w-full !py-3 text-lg" onClick={onLocal}>
-                Play on this device
+                Play vs computer
               </button>
               {!connected && (
                 <p className="text-center text-sm font-bold text-[var(--ink-soft)]">
@@ -142,7 +143,7 @@ export function Home({ onLocal }: { onLocal: () => void }) {
           )}
         </div>
 
-        <div className="mt-5 flex items-center gap-2 text-sm font-bold text-[var(--paper)] opacity-80">
+        <div className="mt-5 flex items-center gap-2 text-sm font-bold text-[var(--cream)] opacity-80">
           <DiceIcon className="h-6 w-6" /> 2 to 4 players per room
         </div>
       </div>

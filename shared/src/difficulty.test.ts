@@ -1,3 +1,4 @@
+import { getSafeTiles } from './boardGeometry';
 import { describe, expect, it } from 'vitest';
 import {
     applyMove,
@@ -20,18 +21,30 @@ function board(difficulty: 'EASY' | 'MEDIUM' | 'HARD', progress: Record<string, 
 
 describe('difficulty', () => {
     it('maps each level to its rules', () => {
-        expect(difficultyOverrides('EASY')).toMatchObject({ entryRule: 'ONE_OR_SIX', exactFinishRoll: false });
+        expect(difficultyOverrides('EASY')).toMatchObject({ entryRule: 'SIX', exactFinishRoll: false });
         expect(difficultyOverrides('MEDIUM')).toMatchObject({ entryRule: 'SIX', exactFinishRoll: true, missedCapturePenalty: false });
         expect(difficultyOverrides('HARD')).toMatchObject({ squadsProtected: false, missedCapturePenalty: true });
     });
 
-    it('easy lets a 1 or a 6 leave base, medium only a 6', () => {
-        const easy = createArenaGame(2, 1, 'EASY');
-        const med = createArenaGame(2, 1, 'MEDIUM');
-        expect(legalMoves(easy.game, 0, 1, easy.settings)).toHaveLength(1);
-        expect(legalMoves(easy.game, 0, 3, easy.settings)).toHaveLength(0);
-        expect(legalMoves(med.game, 0, 1, med.settings)).toHaveLength(0);
-        expect(legalMoves(med.game, 0, 6, med.settings)).toHaveLength(1);
+    it('only a 6 brings a character out of base, in every mode', () => {
+        for (const d of ['EASY', 'MEDIUM', 'HARD'] as const) {
+            const { game, settings } = createArenaGame(2, 2, d);
+            expect(legalMoves(game, 0, 1, settings)).toHaveLength(0);
+            expect(legalMoves(game, 0, 5, settings)).toHaveLength(0);
+            // a 6 can bring out either character, but one at a time
+            expect(legalMoves(game, 0, 6, settings)).toHaveLength(2);
+        }
+    });
+
+    it('the start tile and the starred stop are safe in every mode', () => {
+        for (const d of ['EASY', 'MEDIUM', 'HARD'] as const) {
+            const { game, settings } = createArenaGame(4, 1, d);
+            const safe = getSafeTiles(game.N, game.S, settings.starTilesPerSegment);
+            for (let seat = 0; seat < 4; seat++) {
+                expect(safe).toContain(seat * game.S);
+                expect(safe).toContain(seat * game.S + 8);
+            }
+        }
     });
 
     it('easy lets an overshooting roll finish, medium does not', () => {

@@ -168,9 +168,12 @@ export function getSafeTiles(
         tiles.add(start);
 
         for (let star = 1; star <= starsPerSegment; star++) {
-            const offset = Math.floor(
-                (star * S) / (starsPerSegment + 1)
-            );
+            // One stop per side sits 8 tiles after the start square on the
+            // classic 13-tile side (the starred tile); more are spread evenly.
+            const offset =
+                starsPerSegment === 1
+                    ? Math.min(S - 1, Math.round((8 * S) / 13))
+                    : Math.floor((star * S) / (starsPerSegment + 1));
 
             tiles.add(start + offset);
         }

@@ -458,20 +458,8 @@ for (const N of [2, 4, 9, 16]) {
 }
 
 describe('additional configurable rules', () => {
-    it('supports 1 or 6 and any-roll base entry modes', () => {
+    it('supports the any-roll base entry mode', () => {
         const { game } = setup(4);
-
-        expect(
-            legalMoves(
-                game,
-                0,
-                1,
-                createSettings(
-                    4,
-                    { entryRule: 'ONE_OR_SIX' }
-                )
-            )
-        ).toHaveLength(4);
 
         expect(
             legalMoves(

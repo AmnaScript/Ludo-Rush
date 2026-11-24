@@ -1,88 +1,78 @@
 import * as THREE from 'three';
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import { useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { type BoardLayout } from '../boardLayout';
 import { type CameraActions } from './types';
+import { screen, setScreenUp } from './screen';
+import { sideDockFor } from './layoutMode';
+
+const CANDIDATES: [number, number][] = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+const TOP_BAR = 64; // px reserved for the title pills (narrow windows)
+const DOCK = 112; // px reserved for the dice dock (narrow windows)
 
 /**
- * Fixed, automatic camera (no user zoom / orbit). It sits behind the viewing
- * seat's home and swoops in on capture scenes via `focus`.
+ * Fixed top-down camera. The whole board is flat on screen, never tilts and
+ * never moves: not for turns and not for capture scenes.
+ * The viewing seat's home sits in the bottom-left corner.
  */
 export function HomeCamera({
     layout,
     seat,
     actions,
-    focus,
 }: {
     layout: BoardLayout;
     seat: number;
     actions: CameraActions;
-    focus: MutableRefObject<THREE.Vector3 | null>;
 }) {
     const { camera, size } = useThree();
-    const look = useRef(new THREE.Vector3());
-    const wantPos = useRef(new THREE.Vector3());
-    const wantLook = useRef(new THREE.Vector3());
-    const ready = useRef(false);
 
-    const compute = () => {
-        const base = layout.bases[seat];
-        const dir = new THREE.Vector3(base[0], 0, base[2]).normalize();
-        const f = focus.current;
-
-        if (f) {
-            wantLook.current.copy(f);
-            wantPos.current.set(
-                f.x + dir.x * 8.5,
-                8.6,
-                f.z + dir.z * 8.5
-            );
-            return;
+    // choose the quarter turn that puts our home bottom-left
+    useEffect(() => {
+        const base = layout.bases[seat] ?? [0, 0, 0];
+        let best: [number, number] = [0, -1];
+        let score = -Infinity;
+        for (const [ux, uz] of CANDIDATES) {
+            const rx = -uz;
+            const rz = ux;
+            const x = base[0] * rx + base[2] * rz; // screen right
+            const y = base[0] * ux + base[2] * uz; // screen up
+            const s = -x - y; // bottom-left = most negative on both
+            if (s > score) {
+                score = s;
+                best = [ux, uz];
+            }
         }
-
-        const aspect = size.width / Math.max(1, size.height);
-        // Narrow canvases (phones) need more distance so the whole board fits.
-        const fit = Math.max(1, 1.25 / aspect);
-        const distance = layout.extent * 2.0 * fit;
-        // look a little towards the viewer so the board sits above the dice dock
-        wantLook.current.set(dir.x * layout.extent * 0.3, 0, dir.z * layout.extent * 0.3);
-        wantPos.current.set(
-            dir.x * distance,
-            layout.extent * 1.6 * fit,
-            dir.z * distance
-        );
-    };
+        setScreenUp(best[0], best[1]);
+    }, [layout, seat]);
 
     useEffect(() => {
-        ready.current = false;
-    }, [layout, size.width, size.height]);
-
-    useEffect(() => {
-        actions.current = {
-            resetView: () => {
-                ready.current = false;
-            },
-        };
+        actions.current = { resetView: () => {} };
         return () => {
             actions.current = null;
         };
     }, [actions]);
 
-    useFrame((_, delta) => {
-        compute();
+    useFrame(() => {
+        const cam = camera as THREE.OrthographicCamera;
+        const wide = size.width >= 1024;
+        const side = sideDockFor(size.width, size.height);
+        const top = side ? 6 : TOP_BAR;
+        const bottom = side ? 6 : DOCK;
+        const availH = Math.max(120, size.height - top - bottom);
+        const availW = size.width - (wide ? 12 : 8);
+        const span = layout.mode === 'classic' ? 15.85 : layout.extent * 2 + 0.4;
+        const zoom = Math.min(availW, availH) / span;
 
-        if (!ready.current) {
-            camera.position.copy(wantPos.current);
-            look.current.copy(wantLook.current);
-            camera.lookAt(look.current);
-            ready.current = true;
-            return;
-        }
+        // Centre the board in the free area between the title pills and the dock.
+        // Moving the look-at point up the screen pushes the board down.
+        const shiftPx = top + availH / 2 - size.height / 2;
+        const k = shiftPx / zoom;
 
-        const k = 1 - Math.exp(-delta * (focus.current ? 4.2 : 3));
-        camera.position.lerp(wantPos.current, k);
-        look.current.lerp(wantLook.current, k);
-        camera.lookAt(look.current);
+        cam.zoom = zoom;
+        cam.updateProjectionMatrix();
+        cam.up.copy(screen.up);
+        cam.position.set(screen.up.x * k, 60, screen.up.z * k);
+        cam.lookAt(screen.up.x * k, 0, screen.up.z * k);
     });
 
     return null;

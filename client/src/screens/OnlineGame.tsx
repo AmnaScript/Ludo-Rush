@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, WifiOff } from 'lucide-react';
-import { DIFFICULTY_INFO, arenaSettings, capturingMoves, type GameState, type TurnInfo } from '@ludo-rush/shared';
+import { DIFFICULTY_INFO, arenaSettings, type GameState, type TurnInfo } from '@ludo-rush/shared';
 import { Board3D, type Board3DHandle } from '../game/Board3D';
 import { playerColor } from '../game/boardLayout';
 import { GameStage } from '../components/GameStage';
 import { RulesCard } from '../components/RulesCard';
+import { Standings } from '../components/Standings';
 import { ChatPanel } from '../components/ChatPanel';
 import { play } from '../audio/sfx';
 import { ROLL_MS } from '../components/RollingDice';
@@ -22,7 +22,6 @@ export function OnlineGame() {
 
   const me = snapshot.players.find((p) => p.id === session.playerId);
   const mySeat = me?.seat ?? null;
-  const spectator = mySeat === null;
   const isHost = snapshot.hostId === session.playerId;
   const N = snapshot.game!.N;
 
@@ -39,8 +38,6 @@ export function OnlineGame() {
   );
   const [animating, setAnimating] = useState(false);
   const [rolling, setRolling] = useState(false);
-  const [follow, setFollow] = useState(spectator);
-  const [view, setView] = useState(mySeat ?? 0);
   const [now, setNow] = useState(Date.now());
 
   // All game events go through one queue so scenes never overlap and order is kept.
@@ -134,7 +131,8 @@ export function OnlineGame() {
   const myTurn = mySeat !== null && activeSeat === mySeat;
   const canRoll = myTurn && !!turn && turn.dice === null && !animating && !rolling && !finished;
   const mustChoose = myTurn && validIds.length > 1 && !animating;
-  const viewSeat = follow || finished ? activeSeat : view;
+  // The board never turns: you always look from your own home (spectators from seat 0).
+  const viewSeat = mySeat ?? 0;
   const secondsLeft = turn?.deadline ? Math.max(0, Math.ceil((turn.deadline - now) / 1000)) : null;
 
   const roll = () => {
@@ -159,39 +157,18 @@ export function OnlineGame() {
     () => arenaSettings(players.length, 4, difficulty),
     [players.length, difficulty],
   );
-  const captureIds =
-    myTurn && game.dice !== null && validIds.length > 0 && !animating ? capturingMoves(game, settings) : [];
-  const warnHard =
-    settings.missedCapturePenalty && captureIds.length > 0 && validIds.length > 1
-      ? 'Hard rule: you can capture! If you move another character, your capturing character goes home.'
-      : null;
-
-  const hint = finished
-    ? ''
-    : spectator
-      ? `You are watching ${nameOfSeat(activeSeat)}`
-      : myTurn
-        ? animating
-          ? 'Watch your move'
-          : mustChoose
-            ? `Tap one of the glowing characters to move ${dice} steps`
-            : canRoll
-              ? 'Press ROLL'
-              : 'Rolling…'
-        : `Waiting for ${nameOfSeat(activeSeat)}`;
 
   const dock = finished ? undefined : (
     <TurnDock
       color={playerColor(activeSeat, N)}
       who={myTurn ? 'YOUR TURN' : `${nameOfSeat(activeSeat)}'s turn`}
-      hint={hint}
-      warn={warnHard}
       dice={dice}
       rolling={rolling}
       canRoll={canRoll}
       onRoll={roll}
       yourTurn={myTurn}
       secondsLeft={myTurn ? secondsLeft : null}
+      totalSeconds={snapshot.options.turnSeconds}
     />
   );
 
@@ -225,43 +202,24 @@ export function OnlineGame() {
         </p>
       )}
 
-      <section className="panel p-4">
-        <p className="panel-title mb-2">Players</p>
-        <ul className="space-y-1.5">
-          {players.map((p) => (
-            <li
-              key={p.id}
-              className={`flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 font-extrabold ${p.seat === activeSeat && !finished ? 'border-[var(--ink)] bg-[var(--yellow)]' : 'border-transparent'}`}
-            >
-              <span className="h-4 w-4 shrink-0 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: playerColor(p.seat!, N) }} />
-              <button
-                onClick={() => {
-                  setFollow(false);
-                  setView(p.seat!);
-                }}
-                className="truncate text-left"
-                title="View from this home"
-              >
-                {p.nickname}
-                {p.id === session.playerId && <span className="text-[var(--ink-soft)]"> (you)</span>}
-              </button>
-              {p.isBot && <Bot size={14} className="shrink-0" aria-label="Bot" />}
-              {!p.connected && !p.isBot && <WifiOff size={14} className="shrink-0 text-[var(--red)]" aria-label="Offline" />}
-              <span className="ml-auto shrink-0 text-sm text-[var(--ink-soft)]">
-                {game.ranking.includes(p.seat!) ? `#${game.ranking.indexOf(p.seat!) + 1}` : `${homeCount(p.seat!)}/${perPlayer} home`}
-              </span>
-            </li>
-          ))}
-        </ul>
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
-          <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} className="h-4 w-4 accent-[var(--red)]" />
-          Camera follows whose turn it is
-        </label>
-      </section>
+      <Standings
+        rows={players.map((p) => ({
+          key: p.id,
+          name: p.nickname,
+          color: playerColor(p.seat!, N),
+          home: homeCount(p.seat!),
+          total: perPlayer,
+          rank: game.ranking.includes(p.seat!) ? game.ranking.indexOf(p.seat!) + 1 : undefined,
+          active: p.seat === activeSeat && !finished,
+          you: p.id === session.playerId,
+          bot: p.isBot,
+          offline: !p.connected && !p.isBot,
+        }))}
+      />
 
       <RulesCard difficulty={difficulty} />
 
-      <ChatPanel playerCount={N} className="h-72" />
+      <ChatPanel playerCount={N} className="h-[34rem] min-h-[26rem]" />
 
       <button onClick={leaveRoom} className="btn btn-paper btn-small w-full">
         Leave room

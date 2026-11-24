@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { useMemo, type MutableRefObject } from 'react';
 import { type Piece } from '@ludo-rush/shared';
 import { createLayout, piecePosition, playerColor, routeForPiece, type Vec3 } from '../boardLayout';
-import { type Props, type MoveJob, type FXState, type ActorRegistry, type CameraActions, type FocusRef } from './types';
+import { type Props, type MoveJob, type FXState, type ActorRegistry, type CameraActions } from './types';
 import { Tile } from './Tile';
 import { Home } from './Home';
 import { Character } from './Character';
@@ -10,6 +10,29 @@ import { CartoonDog } from './CartoonDog';
 import { CaptureEffect } from './CaptureEffect';
 import { HomeCamera } from './HomeCamera';
 import { AnimationDirector } from './AnimationDirector';
+
+function makeWoodTexture() {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 512;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#35210f';
+    g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 90; i++) {
+        const y = Math.random() * 512;
+        g.strokeStyle = `rgba(${Math.random() > 0.5 ? '255,200,140' : '0,0,0'},${0.04 + Math.random() * 0.07})`;
+        g.lineWidth = 1 + Math.random() * 3;
+        g.beginPath();
+        g.moveTo(0, y);
+        g.bezierCurveTo(170, y + (Math.random() - 0.5) * 14, 340, y + (Math.random() - 0.5) * 14, 512, y);
+        g.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(9, 9);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+}
 
 export function World({
     game,
@@ -25,7 +48,6 @@ export function World({
     cameraActions,
     effect,
     setEffect,
-    focus,
 }: Props & {
     jobRef: MutableRefObject<MoveJob | null>;
     actors: ActorRegistry;
@@ -33,7 +55,6 @@ export function World({
     cameraActions: CameraActions;
     effect: FXState | null;
     setEffect: (effect: FXState | null) => void;
-    focus: FocusRef;
 }) {
     const layout = useMemo(
         () => createLayout(
@@ -49,6 +70,7 @@ export function World({
     );
 
     const compact = game.N > 8;
+    const tableTexture = useMemo(() => makeWoodTexture(), []);
 
     // Corners nobody sits in (2 and 3 player games) stay neutral and empty.
     const inPlay = useMemo(
@@ -56,7 +78,7 @@ export function World({
         [game.pieces]
     );
     const seatColor = (seat: number) =>
-        inPlay.has(seat) ? playerColor(seat, game.N) : '#d8c79d';
+        inPlay.has(seat) ? playerColor(seat, game.N) : '#43322a';
 
     const legal = useMemo(
         () => new Set(validPieceIds),
@@ -153,24 +175,24 @@ export function World({
         <>
             <color
                 attach="background"
-                args={['#2d1d12']}
+                args={['#150e0a']}
             />
 
-            <ambientLight intensity={0.8} />
+            <ambientLight intensity={1.0} />
 
             <hemisphereLight
-                args={['#fff1d6', '#7a4a2a', 1.0]}
+                args={['#fff4de', '#8a5a36', 0.9]}
             />
 
             <directionalLight
-                position={[12, 24, 10]}
-                intensity={2.0}
+                position={[-8, 30, 12]}
+                intensity={1.6}
                 castShadow
                 shadow-mapSize={[2048, 2048]}
-                shadow-camera-left={-35}
-                shadow-camera-right={35}
-                shadow-camera-top={35}
-                shadow-camera-bottom={-35}
+                shadow-camera-left={-14}
+                shadow-camera-right={14}
+                shadow-camera-top={14}
+                shadow-camera-bottom={-14}
             />
 
             <HomeCamera
@@ -182,7 +204,6 @@ export function World({
                     )
                 }
                 actions={cameraActions}
-                focus={focus}
             />
 
             {layout.mode === 'classic' && (
@@ -204,14 +225,14 @@ export function World({
             {layout.mode === 'classic' ? (
                 <mesh position={[0, -0.53, 0]} receiveShadow castShadow>
                     <boxGeometry args={[14.7, 0.67, 14.7]} />
-                    <meshStandardMaterial color="#efdcae" roughness={0.85} />
+                    <meshStandardMaterial color="#2f211a" roughness={0.85} />
                 </mesh>
             ) : (
                 layout.star && (
                     <group position={[0, -0.53, 0]}>
                         <mesh receiveShadow castShadow>
                             <cylinderGeometry args={[layout.star.hub, layout.star.hub, 0.67, 48]} />
-                            <meshStandardMaterial color="#efdcae" roughness={0.85} />
+                            <meshStandardMaterial color="#2f211a" roughness={0.85} />
                         </mesh>
                         {layout.star.arms.map((arm, i) => (
                             <mesh
@@ -222,7 +243,7 @@ export function World({
                                 castShadow
                             >
                                 <boxGeometry args={[arm.length, 0.67, arm.width]} />
-                                <meshStandardMaterial color="#efdcae" roughness={0.85} />
+                                <meshStandardMaterial color="#2f211a" roughness={0.85} />
                             </mesh>
                         ))}
                     </group>
@@ -236,8 +257,8 @@ export function World({
             >
                 <planeGeometry args={[150, 150]} />
                 <meshStandardMaterial
-                    color="#6a4023"
-                    roughness={0.95}
+                    map={tableTexture}
+                    roughness={0.9}
                 />
             </mesh>
 
@@ -254,7 +275,7 @@ export function World({
                     >
                         <boxGeometry args={[5.25, 0.10, 5.25]} />
                         <meshStandardMaterial
-                            color={inPlay.has(seat) ? playerColor(seat, game.N) : '#d8c79d'}
+                            color={inPlay.has(seat) ? playerColor(seat, game.N) : '#43322a'}
                         />
                     </mesh>
                 ))}
@@ -311,17 +332,33 @@ export function World({
                 ))
             )}
 
-            <mesh
-                position={[0, 0.09, 0]}
-                castShadow
-            >
-                <cylinderGeometry
-                    args={[0.61, 0.68, 0.25, 32]}
-                />
-                <meshStandardMaterial
-                    color="#ffcc32"
-                    roughness={0.4}
-                />
+            {layout.mode === 'classic' && layout.lanes.map((lane, seat) => {
+                const first = lane[0]!;
+                const last = lane[lane.length - 1]!;
+                const dx = last[0] - first[0];
+                const dz = last[2] - first[2];
+                const len = Math.hypot(dx, dz) || 1;
+                const ux = dx / len;
+                const uz = dz / len;
+                const half = 1.38;
+                // base edge at the lane's end, pointing to the middle of the board
+                const bx = ux * -half;
+                const bz = uz * -half;
+                const shape = new THREE.Shape();
+                shape.moveTo(0, 0);
+                shape.lineTo(bx - uz * half, -(bz + ux * half));
+                shape.lineTo(bx + uz * half, -(bz - ux * half));
+                shape.closePath();
+                return (
+                    <mesh key={`centre-${seat}`} position={[0, 0.215, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                        <shapeGeometry args={[shape]} />
+                        <meshBasicMaterial color={seatColor(seat)} />
+                    </mesh>
+                );
+            })}
+            <mesh position={[0, 0.225, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <circleGeometry args={[0.32, 24]} />
+                <meshBasicMaterial color="#fff8e8" />
             </mesh>
 
             {layout.bases.map((base, seat) => inPlay.has(seat) && (
@@ -329,6 +366,7 @@ export function World({
                     key={`home-${seat}`}
                     label={seatLabels?.[seat]}
                     base={base}
+                    slots={layout.slots[seat]!}
                     color={playerColor(seat, game.N)}
                     seat={seat}
                     active={seat === game.turnSeat}
@@ -354,7 +392,7 @@ export function World({
             <CartoonDog dogRef={dogRef} />
 
 
-            <CaptureEffect effect={effect} />
+            <CaptureEffect effect={effect} actors={actors} />
 
             <AnimationDirector
                 game={game}
@@ -363,7 +401,6 @@ export function World({
                 actors={actors}
                 dogRef={dogRef}
                 setEffect={setEffect}
-                focus={focus}
             />
         </>
     );

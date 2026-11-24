@@ -8,7 +8,11 @@ import { Room } from './rooms/Room';
 import { RoomManager } from './rooms/RoomManager';
 
 const port = Number(process.env.PORT ?? 5000);
-const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+// One or more allowed site addresses, comma separated, no trailing slash.
+const clientOrigin = (process.env.CLIENT_ORIGIN ?? 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim().replace(/\/$/, ''))
+  .filter(Boolean);
 const app = express();
 app.use(cors({ origin: clientOrigin }));
 app.use(express.json());

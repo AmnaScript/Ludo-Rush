@@ -8,8 +8,6 @@ export interface Board3DHandle {
     playMove: (move: MoveResult) => Promise<void>;
 }
 
-export type FocusRef = MutableRefObject<THREE.Vector3 | null>;
-
 export interface Props {
     game: GameState;
     validPieceIds: string[];
@@ -49,6 +47,9 @@ export interface MoveJob {
     captureIndex: number;
     captureStarted: boolean;
     victimFrom: Vec3 | null;
+    attackerFrom?: Vec3 | null;
+    stagePos?: Vec3 | null;
+    slapFrom?: Vec3 | null;
 }
 
 export interface FXState {
@@ -58,8 +59,8 @@ export interface FXState {
     duration: number;
     attackerSeat: number;
     victimSeat: number;
-    attackerPos: Vec3;
-    victimPos: Vec3;
+    attackerId: string;
+    victimId: string;
     homePos: Vec3;
 }
 

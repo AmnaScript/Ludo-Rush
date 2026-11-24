@@ -9,7 +9,7 @@ import {
 import {
   DIFFICULTY_INFO,
   applyMove,
-  capturingMoves,
+  chooseBotMove,
   createArenaGame,
   type Difficulty,
   finalRanking,
@@ -30,6 +30,7 @@ import {
 import { playerColor } from '../game/boardLayout';
 import { ROLL_MS } from '../components/RollingDice';
 import { GameStage } from '../components/GameStage';
+import { Standings } from '../components/Standings';
 import { TurnDock } from '../components/TurnDock';
 import { RulesCard } from '../components/RulesCard';
 import { DifficultyPicker } from '../components/DifficultyPicker';
@@ -78,11 +79,13 @@ export function LocalGame({
   onExit: () => void;
 }) {
   const seatsRef = useRef<number[]>([0, 1, 2, 3]);
-  const forcedDiceRef = useRef<number | null>(null);
-  const [forcedDice, setForcedDice] = useState<number | null>(null);
   const [rolling, setRolling] = useState(false);
 
-  const nameOf = useCallback((seat: number) => COLOR_NAMES[seat] ?? `Player ${seat + 1}`, []);
+  const nameOf = useCallback((seat: number) => {
+    if (seat === seatsRef.current[0]) return 'You';
+    return `Computer (${COLOR_NAMES[seat] ?? `Player ${seat + 1}`})`;
+  }, []);
+  const isYou = (seat: number) => seat === seatsRef.current[0];
 
   const [playerCount, setPlayerCount] =
     useState(4);
@@ -108,12 +111,9 @@ export function LocalGame({
   const [ranking, setRanking] =
     useState<number[]>([]);
 
-  const [showRoutes, setShowRoutes] =
-    useState(true);
-
   const [activity, setActivity] =
     useState<string[]>([
-      'Welcome to the new Ludo Rush arena.',
+      'Welcome to Ludo Rush.',
     ]);
 
   const boardRef =
@@ -141,7 +141,10 @@ export function LocalGame({
     : {};
   const activeSeat = game?.turnSeat ?? 0;
 
-  const viewSeat = activeSeat;
+  // The board never turns; your home is always bottom-left.
+  const humanSeat = seatsRef.current[0] ?? 0;
+  const viewSeat = humanSeat;
+  const yourTurn = activeSeat === humanSeat;
 
   const log = useCallback(
     (message: string) => {
@@ -208,103 +211,11 @@ export function LocalGame({
     setPhase('ROLL');
 
     setActivity([
-      `${playerCount} players, ${DIFFICULTY_INFO[difficulty].label} mode.`,
-      `${nameOf(arena.seats[0]!)} rolls first.`,
+      `You vs ${playerCount - 1} computer${playerCount > 2 ? 's' : ''}, ${DIFFICULTY_INFO[difficulty].label} mode.`,
+      'You roll first.',
     ]);
 
     boardRef.current?.resetView();
-  };
-
-  /** Test helper: a two-player game where the next roll (forced to 2) captures. */
-  const startCaptureDemo = (style: 'GUN' | 'SLAP' | 'DOG') => {
-    clearTimer();
-    busyRef.current = false;
-
-    const arena = createArenaGame(2, 1);
-    const settings: GameSettings = {
-      ...arena.settings,
-      captureStyles: { GUN: 0, SLAP: 0, DOG: 0, [style]: 1 },
-    };
-    const next: GameState = {
-      ...arena.game,
-      pieces: arena.game.pieces.map(piece => ({
-        ...piece,
-        // seat 0 sits two tiles behind seat 2's piece on a normal tile
-        progress: piece.ownerSeat === 0 ? 10 : 38,
-      })),
-    };
-
-    seatsRef.current = arena.seats;
-    settingsRef.current = settings;
-    forcedDiceRef.current = 2;
-    setForcedDice(2);
-
-    updateGame(next);
-    updateLegal([]);
-    setDice(null);
-    setRanking([]);
-    setPhase('ROLL');
-    setActivity([
-      `Capture test (${style}): roll, then pick the glowing character. Red captures Yellow.`,
-    ]);
-    boardRef.current?.resetView();
-  };
-
-  /** Test helper: Hard mode, Red can capture Yellow but also has another move. */
-  const startPenaltyDemo = () => {
-    clearTimer();
-    busyRef.current = false;
-
-    const arena = createArenaGame(2, 2, 'HARD');
-    const progress: Record<string, number> = { 's0-p0': 10, 's0-p1': 30, 's2-p0': 38, 's2-p1': 30 };
-    const next: GameState = {
-      ...arena.game,
-      pieces: arena.game.pieces.map(piece => ({ ...piece, progress: progress[piece.id] ?? -1 })),
-    };
-
-    seatsRef.current = arena.seats;
-    settingsRef.current = arena.settings;
-    forcedDiceRef.current = 2;
-    setForcedDice(2);
-    updateGame(next);
-    updateLegal([]);
-    setDice(null);
-    setRanking([]);
-    setPhase('ROLL');
-    setActivity(['Hard rule test: Red can capture with one character. Move the OTHER one and see what happens.']);
-    boardRef.current?.resetView();
-  };
-
-  /** Test helper: four players with most characters already near or in home. */
-  const startHomeDemo = () => {
-    clearTimer();
-    busyRef.current = false;
-
-    const arena = createArenaGame(4, 4);
-    const finished = arena.game.L + arena.game.H;
-    const stages = [finished, finished, arena.game.L + 3, arena.game.L - 4];
-    const next: GameState = {
-      ...arena.game,
-      pieces: arena.game.pieces.map(piece => ({
-        ...piece,
-        progress: stages[Number(piece.id.split('-p')[1] ?? 0) % 4]!,
-      })),
-    };
-
-    seatsRef.current = arena.seats;
-    settingsRef.current = arena.settings;
-    updateGame(next);
-    updateLegal([]);
-    setDice(null);
-    setRanking([]);
-    setPhase('ROLL');
-    setActivity(['Home stretch test: look at how the finish area and home lanes are used.']);
-    boardRef.current?.resetView();
-  };
-
-  const forceDice = (value: number | null) => {
-    forcedDiceRef.current = value;
-    setForcedDice(value);
   };
 
   const restart = () => {
@@ -336,6 +247,9 @@ export function LocalGame({
 
     if (!current || !settings) return;
 
+    // A roll is already waiting for a move: never roll again on top of it.
+    if (current.dice !== null) return;
+
     busyRef.current = true;
     setRolling(true);
     updateLegal([]);
@@ -354,9 +268,7 @@ export function LocalGame({
   ) => {
     try {
       const value =
-        forcedDiceRef.current ?? randomInt(6) + 1;
-      forcedDiceRef.current = null;
-      setForcedDice(null);
+        randomInt(6) + 1;
 
       const result = resolveRoll(
         current,
@@ -476,12 +388,12 @@ export function LocalGame({
         setPhase('FINISHED');
 
         log(
-          `🏆 ${nameOf(finalRanks[0])} wins!`
+          `🏆 ${nameOf(finalRanks[0])} ${isYou(finalRanks[0]) ? 'win' : 'wins'}!`
         );
       } else {
         if (result.extraTurn) {
           log(
-            `${nameOf(next.turnSeat)} gets another turn!`
+            `${nameOf(next.turnSeat)} ${isYou(next.turnSeat) ? 'get' : 'gets'} another turn!`
           );
         }
 
@@ -560,6 +472,36 @@ export function LocalGame({
   );
   choosePieceRef.current = choosePiece;
 
+  // Only you can tap characters; the computer plays its own turns.
+  const pickByHuman = (id: string) => {
+    const current = gameRef.current;
+    if (!current || current.turnSeat !== seatsRef.current[0]) return;
+    void choosePiece(id);
+  };
+
+  const rollByHuman = () => {
+    const current = gameRef.current;
+    if (!current || current.turnSeat !== seatsRef.current[0]) return;
+    rollDice();
+  };
+
+  // Computer turns: roll, then pick a move after a short beat.
+  useEffect(() => {
+    if (!game || game.turnSeat === seatsRef.current[0]) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    if (phase === 'ROLL') {
+      t = setTimeout(() => rollDice(), 800);
+    } else if (phase === 'CHOOSE' && legalIds.length > 1 && settingsRef.current) {
+      const settings = settingsRef.current;
+      t = setTimeout(() => {
+        const cur = gameRef.current;
+        if (!cur || !mountedRef.current) return;
+        void choosePieceRef.current(chooseBotMove(cur, settings, legalRef.current));
+      }, 1000);
+    }
+    return () => { if (t) clearTimeout(t); };
+  }, [phase, game, legalIds, rolling]);
+
   const homeCount = (seat: number) => {
     if (!game) return 0;
 
@@ -572,47 +514,31 @@ export function LocalGame({
   };
 
   const settings = settingsRef.current;
-  const captureIds =
-    game && settings && phase === 'CHOOSE' && game.dice !== null
-      ? capturingMoves(game, settings)
-      : [];
-  const warnHard =
-    settings?.missedCapturePenalty && captureIds.length > 0
-      ? captureIds.length === legalIds.length && legalIds.length === 1
-        ? null
-        : 'Hard rule: you can capture! If you move another character, your capturing character goes home.'
-      : null;
-
-  const hint =
-    phase === 'ROLL'
-      ? 'Press ROLL'
-      : phase === 'CHOOSE'
-        ? legalIds.length > 1
-          ? `Tap one of the glowing characters to move ${dice} steps`
-          : `Moving ${dice} steps…`
-        : phase === 'ANIMATING'
-          ? 'Watch the move'
-          : phase === 'PAUSING'
-            ? 'No move possible, next player'
-            : '';
 
   /* ------------------------------ setup screen ------------------------------ */
   if (phase === 'SETUP' || !game) {
     return (
       <div className="table-bg fixed inset-0 z-30 overflow-y-auto">
-        <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="mx-auto max-w-5xl px-4 py-8">
           <div className="mb-5 flex items-center justify-between">
-            <h1 className="font-title text-4xl text-[var(--paper)] drop-shadow-[0_3px_0_var(--ink)]">New game</h1>
+            <h1 className="font-title text-4xl text-[var(--cream)] drop-shadow-[0_3px_0_var(--ink)]">You vs computer</h1>
             <button onClick={onExit} className="btn btn-paper btn-small">Back</button>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-[1fr_1.2fr]">
+          <div className="grid gap-5">
+            <section className="panel p-5">
+              <p className="label">Difficulty</p>
+              <div className="mt-2">
+                <DifficultyPicker value={difficulty} onChange={setDifficulty} />
+              </div>
+            </section>
+
             <section className="panel space-y-5 p-5">
               <div>
-                <p className="label">Players on this device</p>
+                <p className="label">Computer opponents</p>
                 <div className="mt-2 flex gap-2">
-                  {[2, 3, 4].map(n => (
-                    <button key={n} aria-pressed={playerCount === n} onClick={() => setPlayerCount(n)} className="chip flex-1 text-xl">
+                  {[1, 2, 3].map(n => (
+                    <button key={n} aria-pressed={playerCount === n + 1} onClick={() => setPlayerCount(n + 1)} className="chip flex-1 text-xl">
                       {n}
                     </button>
                   ))}
@@ -634,24 +560,6 @@ export function LocalGame({
               <button onClick={startGame} className="btn btn-red w-full !py-4 text-2xl">Start game</button>
             </section>
 
-            <section className="panel p-5">
-              <p className="label">Difficulty</p>
-              <div className="mt-2">
-                <DifficultyPicker value={difficulty} onChange={setDifficulty} />
-              </div>
-            </section>
-
-            <section className="panel p-5 md:col-span-2">
-              <p className="panel-title">Test lab</p>
-              <p className="text-sm font-bold text-[var(--ink-soft)]">Skip the long game: jump straight into a scene.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('GUN')}>Gun capture</button>
-                <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('SLAP')}>Slap capture</button>
-                <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('DOG')}>Dog capture</button>
-                <button className="btn btn-paper btn-small" onClick={startPenaltyDemo}>Hard-mode penalty</button>
-                <button className="btn btn-paper btn-small" onClick={startHomeDemo}>Home stretch</button>
-              </div>
-            </section>
           </div>
         </div>
       </div>
@@ -663,13 +571,11 @@ export function LocalGame({
     phase === 'FINISHED' ? undefined : (
       <TurnDock
         color={playerColor(activeSeat, game.N)}
-        who={`${nameOf(activeSeat)}'s turn`}
-        hint={hint}
-        warn={warnHard}
+        who={yourTurn ? 'Your turn' : `${nameOf(activeSeat)}'s turn`}
         dice={dice}
         rolling={rolling}
-        canRoll={phase === 'ROLL'}
-        onRoll={rollDice}
+        canRoll={phase === 'ROLL' && yourTurn}
+        onRoll={rollByHuman}
       />
     );
 
@@ -694,41 +600,30 @@ export function LocalGame({
         </section>
       )}
 
-      {phase === 'CHOOSE' && legalIds.length > 1 && (
+      {phase === 'CHOOSE' && yourTurn && legalIds.length > 1 && (
         <section className="panel p-4">
           <p className="panel-title mb-2">Or pick here</p>
           <div className="flex flex-wrap gap-2">
             {legalIds.map(id => (
-              <button key={id} onClick={() => choosePiece(id)} className="btn btn-small">
+              <button key={id} onClick={() => pickByHuman(id)} className="btn btn-small">
                 Move character {Number(id.split('-p')[1] ?? 0) + 1}
-                {captureIds.includes(id) ? ' (captures!)' : ''}
               </button>
             ))}
           </div>
         </section>
       )}
 
-      <section className="panel p-4">
-        <p className="panel-title mb-2">Players</p>
-        <ul className="space-y-1.5">
-          {seatsInPlay(game).map(seat => (
-            <li
-              key={seat}
-              className={`flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 font-extrabold ${seat === activeSeat && phase !== 'FINISHED' ? 'border-[var(--ink)] bg-[var(--yellow)]' : 'border-transparent'}`}
-            >
-              <span className="h-4 w-4 rounded-full border-2 border-[var(--ink)]" style={{ backgroundColor: playerColor(seat, game.N) }} />
-              {nameOf(seat)}
-              <span className="ml-auto text-sm text-[var(--ink-soft)]">
-                {homeCount(seat)}/{settings?.piecesPerPlayer ?? 4} home
-              </span>
-            </li>
-          ))}
-        </ul>
-        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm font-bold">
-          <input type="checkbox" checked={showRoutes} onChange={e => setShowRoutes(e.target.checked)} className="h-4 w-4 accent-[var(--red)]" />
-          Show where the character will land
-        </label>
-      </section>
+      <Standings
+        rows={seatsInPlay(game).map(seat => ({
+          key: String(seat),
+          name: nameOf(seat),
+          color: playerColor(seat, game.N),
+          home: homeCount(seat),
+          total: settings?.piecesPerPlayer ?? 4,
+          rank: ranking.includes(seat) ? ranking.indexOf(seat) + 1 : undefined,
+          active: seat === activeSeat && phase !== 'FINISHED',
+        }))}
+      />
 
       <section className="panel p-4">
         <p className="panel-title mb-2">What happened</p>
@@ -741,24 +636,6 @@ export function LocalGame({
 
       <RulesCard difficulty={settings?.difficulty ?? 'MEDIUM'} />
 
-      <details className="panel p-4">
-        <summary className="panel-title cursor-pointer">Test lab</summary>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('GUN')}>Gun</button>
-          <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('SLAP')}>Slap</button>
-          <button className="btn btn-paper btn-small" onClick={() => startCaptureDemo('DOG')}>Dog</button>
-          <button className="btn btn-paper btn-small" onClick={startPenaltyDemo}>Hard penalty</button>
-        </div>
-        <p className="label mt-3">Force the next dice</p>
-        <div className="mt-1 grid grid-cols-6 gap-1.5">
-          {[1, 2, 3, 4, 5, 6].map(n => (
-            <button key={n} aria-pressed={forcedDice === n} onClick={() => forceDice(forcedDice === n ? null : n)} className="chip !px-0 !py-1 text-center">
-              {n}
-            </button>
-          ))}
-        </div>
-      </details>
-
       <div className="flex gap-2">
         <button onClick={restart} className="btn btn-paper btn-small flex-1">Restart</button>
         <button onClick={onExit} className="btn btn-paper btn-small flex-1">Leave</button>
@@ -769,16 +646,16 @@ export function LocalGame({
   return (
     <GameStage
       color={playerColor(activeSeat, game.N)}
-      title={phase === 'FINISHED' ? 'Game over' : `${nameOf(activeSeat)}'s turn`}
+      title={phase === 'FINISHED' ? 'Game over' : yourTurn ? 'Your turn' : `${nameOf(activeSeat)}'s turn`}
       subtitle={`${DIFFICULTY_INFO[settings?.difficulty ?? 'MEDIUM'].label} mode`}
       board={
         <Board3D
           ref={boardRef}
           game={visibleGame!}
           seatLabels={seatLabels}
-          validPieceIds={legalIds}
-          onPieceClick={choosePiece}
-          showRoutes={showRoutes}
+          validPieceIds={yourTurn ? legalIds : []}
+          onPieceClick={pickByHuman}
+          showRoutes
           viewSeat={viewSeat}
           starsPerSegment={settings?.starTilesPerSegment ?? 1}
         />

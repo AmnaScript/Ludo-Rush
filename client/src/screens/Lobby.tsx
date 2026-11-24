@@ -1,13 +1,15 @@
+import { CLASSIC_COLORS } from '../game/boardLayout';
 import { useState } from 'react';
-import { Bot, WifiOff } from 'lucide-react';
 import { ROOM_LIMITS } from '@ludo-rush/shared';
+import { Mascot } from '../components/Mascots';
 import { ChatPanel } from '../components/ChatPanel';
 import { DifficultyPicker } from '../components/DifficultyPicker';
 import { leaveRoom } from '../net/session';
 import { socket } from '../net/socket';
 import { useRoomStore } from '../store/roomStore';
 
-const SEAT_COLORS = ['#d93a2f', '#2f6bd8', '#f2b81c', '#2a9d57'];
+const SEAT_COLORS = CLASSIC_COLORS;
+const SEAT_NAMES = ['Red', 'Blue', 'Yellow', 'Green'];
 
 export function Lobby() {
   const snapshot = useRoomStore((s) => s.snapshot)!;
@@ -43,20 +45,35 @@ export function Lobby() {
           </section>
 
           <section className="panel p-5">
-            <p className="panel-title">Players in the room ({count}/{ROOM_LIMITS.maxPlayers})</p>
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {snapshot.players.map((p, i) => (
-                <li key={p.id} className="flex items-center gap-2 rounded-xl border-[3px] border-[var(--ink)] bg-[#fffaf0] px-3 py-2 font-extrabold">
-                  <span className="h-5 w-5 shrink-0 rounded-full border-[3px] border-[var(--ink)]" style={{ backgroundColor: SEAT_COLORS[i % 4] }} />
-                  <span className="truncate">
-                    {p.nickname}
-                    {p.id === session.playerId && <span className="text-[var(--ink-soft)]"> (you)</span>}
-                  </span>
-                  {p.isHost && <span className="ml-auto rounded-md bg-[var(--brass)] px-1.5 text-xs">HOST</span>}
-                  {p.isBot && <Bot size={14} className="shrink-0" aria-label="Bot" />}
-                  {!p.connected && <WifiOff size={14} className="shrink-0 text-[var(--red)]" aria-label="Offline" />}
-                </li>
-              ))}
+            <div className="flex items-center justify-between">
+              <p className="panel-title">Players</p>
+              <span className="badge badge-amber">{count}/{ROOM_LIMITS.maxPlayers} ready to play</span>
+            </div>
+            <ul className="mt-3 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(7.5rem,1fr))]">
+              {Array.from({ length: ROOM_LIMITS.maxPlayers }, (_, i) => {
+                const p = snapshot.players[i];
+                const color = SEAT_COLORS[i % 4]!;
+                if (!p) {
+                  return (
+                    <li key={`empty-${i}`} className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/15 px-3 py-5 text-center">
+                      <span className="label" style={{ color }}>{SEAT_NAMES[i]}</span>
+                      <span className="mt-3 font-title text-lg">Open seat</span>
+                      <span className="text-xs font-bold text-[var(--ink-soft)]">Share the code to invite</span>
+                    </li>
+                  );
+                }
+                return (
+                  <li key={p.id} className="flex min-w-0 flex-col items-center overflow-hidden rounded-2xl bg-[var(--paper-2)] px-3 py-3 text-center" style={{ boxShadow: `inset 0 3px 0 ${color}` }}>
+                    <span className="flex w-full flex-wrap items-center justify-between gap-1">
+                      <span className="label" style={{ color }}>{SEAT_NAMES[i]}</span>
+                      {p.isHost ? <span className="badge badge-amber">Host</span> : p.isBot ? <span className="badge">Bot</span> : p.connected ? <span className="badge badge-green">Online</span> : <span className="badge badge-red">Offline</span>}
+                    </span>
+                    <Mascot color={color} i={i} className="mt-2 h-20 w-14" />
+                    <span className="mt-1 w-full truncate font-title text-lg">{p.nickname}</span>
+                    {p.id === session.playerId && <span className="text-xs font-bold text-[var(--ink-soft)]">you</span>}
+                  </li>
+                );
+              })}
             </ul>
             {snapshot.spectators > 0 && <p className="mt-3 text-xs font-bold text-[var(--ink-soft)]">{snapshot.spectators} watching</p>}
           </section>

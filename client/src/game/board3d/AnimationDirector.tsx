@@ -3,9 +3,11 @@ import { type MutableRefObject } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { type GameState } from '@ludo-rush/shared';
 import { cellPosition, type BoardLayout, type Vec3 } from '../boardLayout';
-import { type CaptureStyle, type MoveJob, type FXState, type ActorRegistry, type FocusRef } from './types';
+import { type CaptureStyle, type MoveJob, type FXState, type ActorRegistry } from './types';
+import { SCENE, ramp, sceneSeconds } from './scenes';
+import { screen } from './screen';
 import { play } from '../../audio/sfx';
-import { vec, place, moveBetween, faceToward, smooth } from './helpers';
+import { vec, place, moveBetween, faceToward, faceSide, smooth } from './helpers';
 
 export function AnimationDirector({
     game,
@@ -14,7 +16,6 @@ export function AnimationDirector({
     actors,
     dogRef,
     setEffect,
-    focus,
 }: {
     game: GameState;
     layout: BoardLayout;
@@ -22,7 +23,6 @@ export function AnimationDirector({
     actors: ActorRegistry;
     dogRef: MutableRefObject<THREE.Group | null>;
     setEffect: (effect: FXState | null) => void;
-    focus: FocusRef;
 }) {
     useFrame((_, deltaRaw) => {
         const job = jobRef.current;
@@ -99,7 +99,6 @@ export function AnimationDirector({
                 job.stage = 'stepin';
                 job.time = 0;
                 setEffect(null);
-                focus.current = null;
                 return;
             }
 
@@ -126,177 +125,194 @@ export function AnimationDirector({
                 victimPiece.ownerSeat
                 ][homeIndex];
 
+            const style = capture.style as CaptureStyle;
+            const dur = sceneSeconds(style, capture.lockMs);
+
             if (!job.captureStarted) {
                 job.captureStarted = true;
                 job.time = 0;
-                job.victimFrom = vec(
-                    victim.root.position
-                );
+                job.victimFrom = vec(victim.root.position);
+                job.attackerFrom = vec(attacker.root.position);
 
-                if (capture.style === 'GUN') play('gun');
-                else if (capture.style === 'SLAP') play('slap');
+                // The attacker stands to one side of the victim so the whole
+                // scene can be seen from above: left or right, never on top.
+                const dx = job.attackerFrom[0] - job.victimFrom[0];
+                const dz = job.attackerFrom[2] - job.victimFrom[2];
+                const rightOf = dx * screen.right.x + dz * screen.right.z;
+                let sideSign = rightOf > 0.05 ? 1 : -1;
+                const gap = SCENE[style].gap;
+                // keep the whole scene on the board: if that side runs off the edge, use the other
+                const reach = (sign: number) => {
+                    const x = job.victimFrom![0] + screen.right.x * sign * gap;
+                    const z = job.victimFrom![2] + screen.right.z * sign * gap;
+                    return Math.max(Math.abs(x), Math.abs(z));
+                };
+                if (reach(sideSign) > 7.2 && reach(-sideSign) < reach(sideSign)) sideSign = -sideSign;
+                job.stagePos = [
+                    job.victimFrom[0] + screen.right.x * sideSign * gap,
+                    0,
+                    job.victimFrom[2] + screen.right.z * sideSign * gap,
+                ];
+
+                if (style === 'GUN') play('gun');
+                else if (style === 'SLAP') play('slap');
                 else {
                     play('whistle');
-                    window.setTimeout(() => play('bark'), 500);
-                    window.setTimeout(() => play('door'), Math.max(1.7, Math.min(capture.lockMs / 1000, 3.2)) * 800);
+                    window.setTimeout(() => play('bark'), SCENE.DOG.bite * dur * 1000);
+                    window.setTimeout(() => play('door'), dur * 850);
                 }
-                if (capture.style !== 'SLAP') window.setTimeout(() => play('fall'), 350);
-
-                const dur = Math.max(1.7, Math.min(capture.lockMs / 1000, 3.2));
-                const aPos = vec(attacker.root.position);
-                const vPos = vec(victim.root.position);
-                focus.current = new THREE.Vector3(
-                    (aPos[0] + vPos[0]) / 2,
-                    0.6,
-                    (aPos[2] + vPos[2]) / 2
-                );
 
                 setEffect({
-                    style: capture.style as CaptureStyle,
-                    label:
-                        capture.style === 'SLAP'
-                            ? 'SMACK!'
-                            : capture.style === 'DOG'
-                                ? 'WOOF! WOOF!'
-                                : capture.weapon === 'RIFLE'
-                                    ? 'RIFLE! POW!'
-                                    : 'BANG!',
+                    style,
+                    label: style,
                     duration: dur,
                     attackerSeat: game.pieces.find(piece => piece.id === job.move.pieceId)?.ownerSeat ?? 0,
                     victimSeat: victimPiece.ownerSeat,
-                    attackerPos: aPos,
-                    victimPos: vPos,
+                    attackerId: job.move.pieceId,
+                    victimId: capture.victimId,
                     homePos: home,
                 });
             }
 
             job.time += delta;
+            const t = Math.min(job.time / dur, 1);
+            const start = job.victimFrom ?? vec(victim.root.position);
+            const from = job.attackerFrom ?? vec(attacker.root.position);
+            const stage = job.stagePos ?? from;
 
-            const duration = Math.max(
-                1.7,
-                Math.min(capture.lockMs / 1000, 3.2)
-            );
+            // both characters grow a little so the scene is easy to see
+            const grow = 1 + 0.8 * smooth(Math.min(t / 0.12, 1)) * (1 - smooth(Math.max(0, (t - 0.93) / 0.07)));
+            attacker.root.scale.setScalar(grow);
+            if (victim.root.scale.x > 0.5 || t < 0.5) victim.root.scale.setScalar(grow);
 
-            const t = Math.min(
-                job.time / duration,
-                1
-            );
+            // walk in from the tile behind to the stage position
+            const slide = smooth(t / 0.16);
+            const attackerAt = (gapNow: number): Vec3 => {
+                const dir = [stage[0] - start[0], stage[2] - start[2]];
+                const len = Math.hypot(dir[0], dir[1]) || 1;
+                return [
+                    start[0] + (dir[0] / len) * gapNow,
+                    0,
+                    start[2] + (dir[1] / len) * gapNow,
+                ];
+            };
+            const gap0 = Math.hypot(stage[0] - start[0], stage[2] - start[2]) || 1;
+            // unit vector pointing from the attacker's side to the other side of the victim
+            const awayX = (start[0] - stage[0]) / gap0;
+            const awayZ = (start[2] - stage[2]) / gap0;
 
-            const start =
-                job.victimFrom ?? vec(victim.root.position);
+            if (style === 'SLAP') {
+                const S = SCENE.SLAP;
+                // 1. step in (0-.16)  2. wind up  3. lunge + slap at S.hit  4. victim flies home
+                const lunge = smooth(ramp(t, S.hit - 0.12, S.hit)) * (1 - smooth(ramp(t, S.hit + 0.04, S.hit + 0.2)));
+                const g = gap0 + (S.lunge - gap0) * lunge;
+                const pos = t < 0.16
+                    ? ([
+                          from[0] + (stage[0] - from[0]) * slide,
+                          0,
+                          from[2] + (stage[2] - from[2]) * slide,
+                      ] as Vec3)
+                    : attackerAt(g);
+                place(attacker.root, pos);
+                faceSide(attacker.root, pos, start);
+                attacker.action = t < 0.16 ? 'walk' : t < S.hit + 0.12 ? 'slap' : 'idle';
 
-            faceToward(attacker.root, vec(attacker.root.position), start);
-
-            if (capture.style === 'SLAP' || capture.style === 'DOG') {
-                const vp = victim.root.position;
-                const f = focus.current ?? (focus.current = new THREE.Vector3());
-                f.set(
-                    (vp.x + attacker.root.position.x) / 2,
-                    0.6,
-                    (vp.z + attacker.root.position.z) / 2
-                );
-                if (capture.style === 'DOG' && t > 0.3) f.set(vp.x, 0.6, vp.z);
-            }
-
-            if (capture.style === 'SLAP') {
-                attacker.action =
-                    t < 0.35 ? 'slap' : 'idle';
-
-                victim.action =
-                    t < 0.35 ? 'panic' : 'run';
-
-                if (t >= 0.35) {
-                    const progress = smooth(
-                        (t - 0.35) / 0.65
-                    );
-
-                    faceToward(
-                        victim.root,
-                        start,
-                        home
-                    );
-
-                    moveBetween(
-                        victim.root,
-                        start,
-                        home,
-                        progress
-                    );
+                faceSide(victim.root, start, pos);
+                if (t < S.hit) {
+                    victim.action = 'idle';
+                } else if (t < S.hit + 0.18) {
+                    // knocked back, dizzy
+                    victim.action = 'panic';
+                    const k = smooth(ramp(t, S.hit, S.hit + 0.18));
+                    victim.root.position.set(start[0] + awayX * 0.7 * k, 0, start[2] + awayZ * 0.7 * k);
+                } else {
+                    victim.action = 'run';
+                    const cur = vec(victim.root.position);
+                    const progress = smooth(ramp(t, S.hit + 0.18, 1));
+                    faceToward(victim.root, cur, home);
+                    moveBetween(victim.root, job.slapFrom ?? (job.slapFrom = cur), home, progress);
                 }
             }
 
-            if (capture.style === 'DOG') {
+            if (style === 'GUN') {
+                const G = SCENE.GUN;
+                const pos = t < 0.16
+                    ? ([
+                          from[0] + (stage[0] - from[0]) * slide,
+                          0,
+                          from[2] + (stage[2] - from[2]) * slide,
+                      ] as Vec3)
+                    : attackerAt(gap0 + (t > G.fire && t < G.fire + 0.1 ? 0.18 : 0));
+                place(attacker.root, pos);
+                faceSide(attacker.root, pos, start);
+                attacker.action = t < 0.16 ? 'walk' : t < G.hit + 0.28 ? 'shoot' : 'idle';
+
+                faceSide(victim.root, start, pos);
+                if (t < G.hit) {
+                    victim.action = t < G.fire ? 'panic' : 'panic';
+                } else {
+                    victim.action = 'fall';
+                    const back = smooth(ramp(t, G.hit, G.hit + 0.15));
+                    victim.root.position.set(start[0] + awayX * 0.5 * back, 0, start[2] + awayZ * 0.5 * back);
+                    if (t > G.hit + 0.22) {
+                        victim.root.scale.setScalar(Math.max(0.015, grow * (1 - ramp(t, G.hit + 0.22, G.hit + 0.5))));
+                    }
+                }
+            }
+
+            if (style === 'DOG') {
+                const D = SCENE.DOG;
+                const pos = t < 0.16
+                    ? ([
+                          from[0] + (stage[0] - from[0]) * slide,
+                          0,
+                          from[2] + (stage[2] - from[2]) * slide,
+                      ] as Vec3)
+                    : attackerAt(gap0);
+                place(attacker.root, pos);
+                faceSide(attacker.root, pos, start);
                 attacker.action = 'idle';
-                victim.action = 'panic';
-
-                const progress = smooth(
-                    (t - 0.14) / 0.86
-                );
-
-                faceToward(
-                    victim.root,
-                    start,
-                    home
-                );
-
-                moveBetween(
-                    victim.root,
-                    start,
-                    home,
-                    progress
-                );
 
                 const dog = dogRef.current;
+                const dogBehind: Vec3 = [
+                    pos[0] + (pos[0] - start[0]) * 0.9,
+                    0,
+                    pos[2] + (pos[2] - start[2]) * 0.9,
+                ];
+
+                if (t < D.bite) {
+                    faceSide(victim.root, start, pos);
+                    victim.action = t > D.whistle ? 'panic' : 'idle';
+                } else {
+                    victim.action = 'run';
+                    const cur = vec(victim.root.position);
+                    const progress = smooth(ramp(t, D.bite, 1));
+                    faceToward(victim.root, cur, home);
+                    moveBetween(victim.root, job.slapFrom ?? (job.slapFrom = cur), home, progress);
+                }
 
                 if (dog) {
-                    dog.visible = t >= 0.1;
-                    dog.scale.setScalar(1.6);
-
-                    const chase = smooth(
-                        (t - 0.23) / 0.75
-                    );
-
-                    const dogStart: Vec3 = [
-                        start[0] - 0.45,
-                        0,
-                        start[2] - 0.45,
-                    ];
-
-                    const dogEnd: Vec3 = [
-                        home[0] - 0.45,
-                        0,
-                        home[2] - 0.45,
-                    ];
-
-                    moveBetween(
-                        dog,
-                        dogStart,
-                        dogEnd,
-                        chase
-                    );
-
-                    faceToward(
-                        dog,
-                        dogStart,
-                        dogEnd
-                    );
-                }
-            }
-
-            if (capture.style === 'GUN') {
-                attacker.action =
-                    t <= 0.65 ? 'shoot' : 'idle';
-
-                victim.action =
-                    t < 0.28 ? 'panic' : 'fall';
-
-                if (t > 0.32) {
-                    victim.root.scale.setScalar(
-                        Math.max(
-                            0.015,
-                            1 - (t - 0.32) / 0.5
-                        )
-                    );
+                    dog.visible = t >= D.whistle - 0.02;
+                    dog.scale.setScalar(grow);
+                    if (t < D.bite) {
+                        // runs in from behind the attacker straight at the victim
+                        const k = smooth(ramp(t, D.whistle - 0.02, D.bite));
+                        const dp: Vec3 = [
+                            dogBehind[0] + (start[0] - dogBehind[0]) * k,
+                            0,
+                            dogBehind[2] + (start[2] - dogBehind[2]) * k,
+                        ];
+                        place(dog, dp);
+                        faceSide(dog, dogBehind, start);
+                    } else {
+                        // chases the victim all the way home, snapping at their heels
+                        const vp = vec(victim.root.position);
+                        const dx = vp[0] - home[0];
+                        const dz = vp[2] - home[2];
+                        const len = Math.hypot(dx, dz) || 1;
+                        place(dog, [vp[0] + (dx / len) * 0.9, 0, vp[2] + (dz / len) * 0.9]);
+                        faceToward(dog, vec(dog.position), home);
+                    }
                 }
             }
 
@@ -305,8 +321,11 @@ export function AnimationDirector({
                 attacker.action = 'idle';
 
                 victim.root.scale.setScalar(1);
+                attacker.root.scale.setScalar(1);
                 victim.root.rotation.set(0, 0, 0);
+                victim.root.userData.yaw = 0;
                 place(victim.root, home);
+                job.from = vec(attacker.root.position);
 
                 if (dogRef.current) {
                     dogRef.current.visible = false;
@@ -315,10 +334,12 @@ export function AnimationDirector({
                 job.captureIndex++;
                 job.captureStarted = false;
                 job.victimFrom = null;
+                job.attackerFrom = null;
+                job.stagePos = null;
+                job.slapFrom = null;
                 job.time = 0;
 
                 setEffect(null);
-                focus.current = null;
             }
 
             return;
@@ -375,13 +396,11 @@ export function AnimationDirector({
             const homeIndex =
                 Number(penalty.pieceId.split('-p')[1] ?? 0) % 4;
             const home = layout.slots[piece.ownerSeat][homeIndex];
-            const duration = 2.1;
+            const duration = SCENE.PENALTY.seconds;
 
             if (!job.captureStarted) {
                 job.captureStarted = true;
                 job.time = 0;
-                const pos = vec(victim.root.position);
-                focus.current = new THREE.Vector3(pos[0], 0.6, pos[2]);
                 play('fall');
                 setEffect({
                     style: 'PENALTY',
@@ -389,8 +408,8 @@ export function AnimationDirector({
                     duration,
                     attackerSeat: piece.ownerSeat,
                     victimSeat: piece.ownerSeat,
-                    attackerPos: pos,
-                    victimPos: pos,
+                    attackerId: penalty.pieceId,
+                    victimId: penalty.pieceId,
                     homePos: home,
                 });
             }
@@ -416,7 +435,6 @@ export function AnimationDirector({
                 job.stage = 'finish';
                 job.time = 0;
                 setEffect(null);
-                focus.current = null;
             }
 
             return;
@@ -442,7 +460,6 @@ export function AnimationDirector({
             const resolve = job.resolve;
             jobRef.current = null;
             setEffect(null);
-                focus.current = null;
             resolve();
         }
     });

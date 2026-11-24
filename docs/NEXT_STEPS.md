@@ -11,10 +11,4 @@
 3. **Room features:** host can mute or kick, emoji reactions floating above bases, per-style capture odds in the lobby, reduced-motion setting.
 4. **Server tests:** vitest tests for `Room` (turn flow, timeout auto-play, reconnect, host handoff) next to the existing rules tests; run `test/simulate.ts` in CI.
 5. **Bundle size:** the client chunk is large (three.js); lazy-load the board and add `manualChunks`.
-6. **Deploy:** client on Netlify, server on Render or Railway. Set `VITE_SERVER_URL` and `CLIENT_ORIGIN`, show a "waking up the server" message for sleeping free instances.
-
-## Prompt to continue with another assistant
-
-> I am building "Ludo Rush", a multiplayer 3D Ludo web game (React + Vite + react-three-fiber client, Node + Express + Socket.IO server, shared TypeScript rules engine). Read README.md and docs/NEXT_STEPS.md first, then the project spec PDF I attach.
-> Rooms, lobby, server-authoritative turns, bots, reconnect and chat already work and are tested (`npm test`, and `server/test/simulate.ts` plays a full 16-player game).
-> Work on ONE item from "Still open" at a time, starting with item 2 (mobile polish). Write complete files with their paths, no exercises for me. Keep the shared rules engine pure, never trust the client, and keep files small. After each item run `npm run typecheck && npm run lint && npm test && npm run build`, and end with only a commit message (I commit from the VS Code interface).
+6. **Deploy:** see the Deploy section in README.md. Still to do: a "waking up the server" message for sleeping free instances.

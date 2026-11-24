@@ -1,238 +1,402 @@
 import * as THREE from 'three';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { type FXState } from './types';
+import { type ActorRegistry, type FXState } from './types';
 import { GAME_FONT } from './constants';
+import { Flat } from './Upright';
+import { screen } from './screen';
+import { SCENE, ramp } from './scenes';
 
-const mat = (color: string) => (
-    <meshBasicMaterial color={color} toneMapped={false} transparent />
+const basic = (c: string, extra?: { opacity?: number }) => (
+    <meshBasicMaterial color={c} toneMapped={false} transparent={extra?.opacity !== undefined} opacity={extra?.opacity ?? 1} depthWrite={false} />
 );
 
-function Burst({ refGroup, color = '#ffe14a', spikes = 10, size = 0.5 }: { refGroup: React.RefObject<THREE.Group | null>; color?: string; spikes?: number; size?: number }) {
+function starShape(points: number, outer: number, inner: number) {
+    const shape = new THREE.Shape();
+    for (let i = 0; i < points * 2; i++) {
+        const r = i % 2 === 0 ? outer : inner;
+        const a = (i / (points * 2)) * Math.PI * 2 + Math.PI / 2;
+        const x = Math.cos(a) * r;
+        const y = Math.sin(a) * r;
+        if (i === 0) shape.moveTo(x, y);
+        else shape.lineTo(x, y);
+    }
+    shape.closePath();
+    return shape;
+}
+
+/** A spiky comic starburst. */
+function Burst({ g, color, size }: { g: (n: THREE.Group | null) => void; color: string; size: number }) {
+    const outer = useMemo(() => new THREE.ShapeGeometry(starShape(11, size, size * 0.55)), [size]);
+    const inner = useMemo(() => new THREE.ShapeGeometry(starShape(11, size * 0.7, size * 0.36)), [size]);
     return (
-        <group ref={refGroup as React.Ref<THREE.Group>} visible={false}>
-            {Array.from({ length: spikes }, (_, i) => {
-                const a = (i / spikes) * Math.PI * 2;
-                return (
-                    <mesh key={i} position={[Math.cos(a) * size, Math.sin(a) * size, 0]} rotation={[0, 0, a - Math.PI / 2]}>
-                        <coneGeometry args={[size * 0.28, size * 1.1, 4]} />
-                        {mat(i % 2 ? color : '#ffffff')}
-                    </mesh>
-                );
-            })}
-            <mesh>
-                <circleGeometry args={[size * 0.75, 20]} />
-                {mat(color)}
-            </mesh>
-        </group>
+        <Flat gref={g}>
+            <mesh geometry={outer} position={[0, 0, 0]}>{basic('#1a0f08')}</mesh>
+            <mesh geometry={inner} position={[0, 0, 0.01]}>{basic(color)}</mesh>
+            <mesh geometry={inner} position={[0, 0, 0.02]} scale={0.55}>{basic('#ffffff')}</mesh>
+        </Flat>
     );
 }
 
-/** Everything is timed against effect.duration so the scene matches the animation. */
-export function CaptureEffect({ effect }: { effect: FXState | null }) {
-    const start = useRef(0);
-    const clockRef = useRef<THREE.Clock | null>(null);
+function Word({ g, text, color, size = 0.95 }: { g: (n: THREE.Group | null) => void; text: string; color: string; size?: number }) {
+    return (
+        <Flat gref={g}>
+            <Text font={GAME_FONT} fontSize={size} color={color} outlineColor="#1a0f08" outlineWidth={0.1} anchorX="center" anchorY="middle" rotation={[0, 0, 0.1]}>
+                {text}
+            </Text>
+        </Flat>
+    );
+}
 
-    const flash = useRef<THREE.Mesh>(null);
-    const bullet = useRef<THREE.Mesh>(null);
-    const tracer = useRef<THREE.Mesh>(null);
-    const burst = useRef<THREE.Group>(null);
-    const shock = useRef<THREE.Mesh>(null);
-    const stars = useRef<THREE.Group>(null);
-    const word = useRef<THREE.Group>(null);
-    const lock = useRef<THREE.Group>(null);
-    const ring = useRef<THREE.Mesh>(null);
+/** Scene actors are drawn this much bigger than normal pieces. */
+const K = 1.2;
+
+export function CaptureEffect({ effect, actors }: { effect: FXState | null; actors: ActorRegistry }) {
+    const acc = useRef(0);
+
+    const ringA = useRef<THREE.Mesh>(null);
+    const ringV = useRef<THREE.Mesh>(null);
+    const word = useRef<THREE.Group | null>(null);
+    const word2 = useRef<THREE.Group | null>(null);
+    const burst = useRef<THREE.Group | null>(null);
+    const flash = useRef<THREE.Group | null>(null);
+    const swoosh = useRef<THREE.Group | null>(null);
+    const hand = useRef<THREE.Group | null>(null);
+    const stars = useRef<THREE.Group | null>(null);
+    const bullet = useRef<THREE.Group | null>(null);
+    const smoke = useRef<THREE.Group | null>(null);
+    const whistle = useRef<THREE.Group | null>(null);
+    const waves = useRef<THREE.Group | null>(null);
+    const lock = useRef<THREE.Group | null>(null);
+    const warn = useRef<THREE.Group | null>(null);
+
+    const gref = (r: React.MutableRefObject<THREE.Group | null>) => (n: THREE.Group | null) => {
+        r.current = n;
+    };
+
+    const starGeo = useMemo(() => new THREE.ShapeGeometry(starShape(5, 0.2, 0.09)), []);
+    const warnGeo = useMemo(() => {
+        const s = new THREE.Shape();
+        s.moveTo(0, 0.5);
+        s.lineTo(0.46, -0.3);
+        s.lineTo(-0.46, -0.3);
+        s.closePath();
+        return new THREE.ShapeGeometry(s);
+    }, []);
 
     useEffect(() => {
-        start.current = clockRef.current ? clockRef.current.elapsedTime : 0;
+        acc.current = 0;
     }, [effect]);
 
-    useFrame(({ clock, camera }) => {
-        clockRef.current = clock;
-        if (!effect) return;
-        const tt = Math.min((clock.elapsedTime - start.current) / effect.duration, 1);
-        const A = effect.attackerPos;
-        const V = effect.victimPos;
-        const chest = (p: [number, number, number]) => new THREE.Vector3(p[0], 0.75, p[2]);
+    useFrame(({ clock: c }, deltaRaw) => {
+        acc.current += Math.min(deltaRaw, 0.06);
+        const all = [word, word2, burst, flash, swoosh, hand, stars, bullet, smoke, whistle, waves, lock, warn];
+        const vis = (r: React.MutableRefObject<THREE.Group | null>, on: boolean) => {
+            if (r.current) r.current.visible = on;
+        };
 
-        // floating comic word always faces the camera and bobs
-        if (word.current) {
-            word.current.quaternion.copy(camera.quaternion);
-            const pop = 1 + Math.max(0, 0.35 - tt) * 2.2;
-            word.current.scale.setScalar(pop);
+        if (!effect) {
+            all.forEach(r => vis(r, false));
+            if (ringA.current) ringA.current.visible = false;
+            if (ringV.current) ringV.current.visible = false;
+            return;
         }
-        if (ring.current) ring.current.scale.setScalar(1.1 + Math.sin(clock.elapsedTime * 12) * 0.15);
-        if (stars.current) stars.current.rotation.y += 0.09;
 
-        if (effect.style === 'GUN') {
-            const a = new THREE.Vector3(A[0], 0.8, A[2]);
-            const v = chest(V);
-            const dir = v.clone().sub(a);
-            const len = dir.length();
-            const dirN = dir.clone().normalize();
-            const muzzle = a.clone().add(dirN.clone().multiplyScalar(0.55));
+        const t = Math.min(acc.current / effect.duration, 1);
+        const a = actors.current.get(effect.attackerId)?.root.position;
+        const v = actors.current.get(effect.victimId)?.root.position;
+        if (!a || !v) return;
 
-            if (flash.current) {
-                flash.current.visible = tt > 0.14 && tt < 0.3;
-                flash.current.position.copy(muzzle);
-                flash.current.scale.setScalar(1 + (tt - 0.14) * 6);
-            }
-            if (bullet.current) {
-                const f = THREE.MathUtils.clamp((tt - 0.2) / 0.12, 0, 1);
-                bullet.current.visible = tt > 0.2 && tt < 0.34;
-                bullet.current.position.copy(muzzle).lerp(v, f);
-            }
-            if (tracer.current) {
-                tracer.current.visible = tt > 0.2 && tt < 0.42;
-                tracer.current.position.copy(a.clone().add(v).multiplyScalar(0.5));
-                tracer.current.scale.set(1, Math.max(0.01, len - 0.5), 1);
-                tracer.current.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dirN);
-                const m = tracer.current.material as THREE.MeshBasicMaterial;
-                m.opacity = THREE.MathUtils.clamp(1 - (tt - 0.2) / 0.22, 0, 1);
-            }
-            if (burst.current) {
-                burst.current.visible = tt > 0.3 && tt < 0.56;
-                burst.current.position.copy(v).add(new THREE.Vector3(0, 0.25, 0));
-                burst.current.quaternion.copy(camera.quaternion);
-                burst.current.scale.setScalar(0.6 + (tt - 0.3) * 6);
-            }
+        const R = screen.right;
+        const U = screen.up;
+        const put = (g: THREE.Object3D | null, p: THREE.Vector3, dx: number, h: number) => {
+            if (!g) return;
+            g.position.x = p.x + R.x * dx * K + U.x * h * K;
+            g.position.z = p.z + R.z * dx * K + U.z * h * K;
+        };
+        const mid = new THREE.Vector3().addVectors(a, v).multiplyScalar(0.5);
+        const side = (v.x - a.x) * R.x + (v.z - a.z) * R.z >= 0 ? 1 : -1; // attacker -> victim, on screen
+        const pop = (g: THREE.Group | null, k: number, fadeStart: number, fadeEnd: number, base = 1) => {
+            if (!g) return;
+            const out = 1 - ramp(k, fadeStart, fadeEnd);
+            const overshoot = 1 + Math.sin(Math.min(1, ramp(k, 0, 0.12)) * Math.PI) * 0.35;
+            g.scale.setScalar(Math.max(0.001, base * overshoot * out));
+        };
+
+        // spotlight rings under the two actors
+        if (ringA.current) {
+            ringA.current.visible = effect.style !== 'PENALTY';
+            ringA.current.position.set(a.x, 0.32, a.z);
+            ringA.current.scale.setScalar(1 + Math.sin(c.elapsedTime * 8) * 0.06);
         }
+        if (ringV.current) {
+            ringV.current.visible = true;
+            ringV.current.position.set(v.x, 0.32, v.z);
+            ringV.current.scale.setScalar(1 + Math.sin(c.elapsedTime * 8 + 1) * 0.06);
+        }
+
+        all.forEach(r => vis(r, false));
+
+        // orbiting stars over the victim's head
+        const orbit = (from: number, to: number) => {
+            if (!stars.current || t < from || t > to) return;
+            stars.current.visible = true;
+            put(stars.current, v, 0, 2.1);
+            stars.current.children.forEach((child, i) => {
+                const ang = c.elapsedTime * 7 + (i / 5) * Math.PI * 2;
+                child.position.set(Math.cos(ang) * 0.62, Math.sin(ang) * 0.16, 0.05 + Math.sin(ang) * 0.02);
+                child.rotation.z = c.elapsedTime * 4;
+            });
+        };
 
         if (effect.style === 'SLAP') {
-            const head = new THREE.Vector3(V[0], 1.05, V[2]);
-            if (burst.current) {
-                burst.current.visible = tt > 0.15 && tt < 0.5;
-                burst.current.position.copy(head).add(new THREE.Vector3(0, 0.1, 0));
-                burst.current.quaternion.copy(camera.quaternion);
-                burst.current.scale.setScalar(0.7 + (tt - 0.15) * 4);
+            const hit = SCENE.SLAP.hit;
+            const k = t - hit;
+            // the swipe: a big white arc from the attacker's hand across the victim's face
+            if (t > hit - 0.09 && t < hit + 0.07) {
+                vis(swoosh, true);
+                put(swoosh.current, mid, 0, 1.2);
+                if (swoosh.current) {
+                    swoosh.current.scale.set(side * (0.6 + ramp(t, hit - 0.09, hit) * 0.7), 0.9, 1);
+                }
             }
-            if (shock.current) {
-                const f = THREE.MathUtils.clamp((tt - 0.15) / 0.3, 0, 1);
-                shock.current.visible = f > 0 && f < 1;
-                shock.current.position.set(V[0], 0.15, V[2]);
-                shock.current.scale.setScalar(0.3 + f * 3.2);
-                (shock.current.material as THREE.MeshBasicMaterial).opacity = 1 - f;
+            if (t >= hit && t < hit + 0.14) {
+                vis(burst, true);
+                put(burst.current, v, -side * 0.2, 1.25);
+                if (burst.current) burst.current.scale.setScalar(0.5 + ramp(t, hit, hit + 0.05) * 1.1);
             }
-            if (stars.current) {
-                stars.current.visible = tt > 0.2 && tt < 0.7;
-                stars.current.position.set(V[0], 1.55, V[2]);
+            if (t >= hit && t < hit + 0.5) {
+                vis(hand, true);
+                put(hand.current, v, -side * 0.28, 1.2);
+                if (hand.current) hand.current.scale.set(-side * 1.2, 1.2, 1);
+            }
+            if (t >= hit) {
+                vis(word, true);
+                put(word.current, mid, 0, 3.0);
+                pop(word.current, k / 0.6, 0.55, 1, 1.15);
+            }
+            orbit(hit + 0.02, hit + 0.5);
+        }
+
+        if (effect.style === 'GUN') {
+            const { fire, hit } = SCENE.GUN;
+            const tip = new THREE.Vector3(a.x, 0, a.z);
+            const tipDx = side * 1.55;
+            const tipH = 1.22;
+            const chest = new THREE.Vector3(v.x, 0, v.z);
+
+            if (t >= fire && t < fire + 0.07) {
+                vis(flash, true);
+                put(flash.current, tip, tipDx, tipH);
+                if (flash.current) flash.current.scale.setScalar(0.7 + ramp(t, fire, fire + 0.03) * 0.6);
+            }
+            if (t >= fire && t < fire + 0.3) {
+                vis(smoke, true);
+                put(smoke.current, tip, tipDx + side * 0.25 * ramp(t, fire, fire + 0.3), tipH + 0.25 * ramp(t, fire, fire + 0.3));
+                if (smoke.current) smoke.current.scale.setScalar(0.6 + ramp(t, fire, fire + 0.3) * 1.4);
+            }
+            if (t >= fire && t < hit) {
+                const k = ramp(t, fire, hit);
+                vis(bullet, true);
+                const bx = tip.x + (chest.x - tip.x) * k;
+                const bz = tip.z + (chest.z - tip.z) * k;
+                put(bullet.current, new THREE.Vector3(bx, 0, bz), tipDx * (1 - k), tipH + (1.05 - tipH) * k);
+                if (bullet.current) {
+                    // streak: stretched along the line of fire
+                    bullet.current.scale.set(1.4 * side, 1, 1);
+                }
+            }
+            if (t >= hit && t < hit + 0.16) {
+                vis(burst, true);
+                put(burst.current, v, 0, 1.0);
+                if (burst.current) burst.current.scale.setScalar(0.5 + ramp(t, hit, hit + 0.06) * 1.0);
+            }
+            if (t >= fire) {
+                vis(word, true);
+                put(word.current, a, side * 0.6, 3.0);
+                pop(word.current, (t - fire) / 0.6, 0.55, 1, 1.25);
+            }
+            orbit(hit + 0.03, hit + 0.45);
+        }
+
+        if (effect.style === 'DOG') {
+            const { whistle: w, bite } = SCENE.DOG;
+            if (t < w) {
+                vis(whistle, true);
+                put(whistle.current, a, side * 0.55, 1.12);
+                if (whistle.current) whistle.current.scale.set(side * 1.9, 1.9, 1);
+                vis(waves, true);
+                put(waves.current, a, side * 0.95, 1.15);
+                if (waves.current) {
+                    waves.current.scale.set(side * 1.9, 1.9, 1);
+                    waves.current.children.forEach((arc, i) => {
+                        const k = (t * 3.2 + i / 3) % 1;
+                        arc.position.x = k * 1.1;
+                        arc.scale.setScalar(0.5 + k * 0.9);
+                        arc.visible = k < 0.95;
+                    });
+                }
+                vis(word, true);
+                put(word.current, a, side * 0.2, 3.0);
+                pop(word.current, t / w, 0.8, 1, 1.0);
+            }
+            if (t >= bite - 0.02 && t < bite + 0.14) {
+                vis(burst, true);
+                put(burst.current, v, 0, 0.9);
+                if (burst.current) burst.current.scale.setScalar(0.5 + ramp(t, bite, bite + 0.06));
+            }
+            if (t >= bite) {
+                vis(word2, true);
+                put(word2.current, v, 0, 3.0);
+                pop(word2.current, (t - bite) / 0.5, 0.6, 1, 1.15);
+            }
+            orbit(bite + 0.02, bite + 0.45);
+            if (t > 0.84) {
+                vis(lock, true);
+                put(lock.current, new THREE.Vector3(effect.homePos[0], 0, effect.homePos[2]), 0, 1.5);
+                if (lock.current) lock.current.scale.setScalar(Math.max(0.001, ramp(t, 0.84, 0.92) * 1.15));
             }
         }
 
         if (effect.style === 'PENALTY') {
-            if (burst.current) {
-                burst.current.visible = tt > 0.1 && tt < 0.45;
-                burst.current.position.set(V[0], 1.0, V[2]);
-                burst.current.quaternion.copy(camera.quaternion);
-                burst.current.scale.setScalar(0.7 + tt * 3);
-            }
-        }
-
-        if (effect.style === 'DOG') {
-            if (lock.current) {
-                const f = THREE.MathUtils.clamp((tt - 0.86) / 0.08, 0, 1);
-                lock.current.visible = tt > 0.86;
-                lock.current.position.set(effect.homePos[0], 1.7, effect.homePos[2]);
-                lock.current.quaternion.copy(camera.quaternion);
-                lock.current.scale.setScalar(0.4 + f * 1.1);
-            }
-            if (burst.current) {
-                burst.current.visible = tt > 0.86 && tt < 0.97;
-                burst.current.position.set(effect.homePos[0], 1.0, effect.homePos[2]);
-                burst.current.quaternion.copy(camera.quaternion);
-                burst.current.scale.setScalar(1.0);
-            }
+            vis(warn, true);
+            put(warn.current, v, 0, 2.6 + Math.sin(c.elapsedTime * 10) * 0.05);
+            vis(word, true);
+            put(word.current, v, 0, 3.6);
+            pop(word.current, t / 0.8, 0.8, 1, 1.0);
+            orbit(0.3, 0.8);
         }
     });
 
-    if (!effect) return null;
-
-    const wordPos: [number, number, number] =
-        effect.style === 'DOG'
-            ? [effect.attackerPos[0], 2.5, effect.attackerPos[2]]
-            : [effect.victimPos[0], 2.6, effect.victimPos[2]];
-
     return (
-        <group>
-            {/* spotlight ring under the attacker and the victim */}
-            <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[effect.attackerPos[0], 0.12, effect.attackerPos[2]]}>
-                <ringGeometry args={[0.42, 0.56, 32]} />
-                {mat('#2bff88')}
-            </mesh>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[effect.victimPos[0], 0.12, effect.victimPos[2]]}>
-                <ringGeometry args={[0.42, 0.56, 32]} />
-                {mat('#ff3b5c')}
-            </mesh>
+        <>
+            {([ringA, ringV] as const).map((r, i) => (
+                <mesh key={i} ref={r} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
+                    <ringGeometry args={[0.62, 0.8, 36]} />
+                    <meshBasicMaterial color={i === 0 ? '#ffb800' : '#ff4d4d'} toneMapped={false} />
+                </mesh>
+            ))}
 
-            <group ref={word} position={wordPos}>
-                <Text font={GAME_FONT} fontSize={0.6} color="#ffe14a" outlineColor="#4b1330" outlineWidth={0.1} anchorX="center">
-                    {effect.label}
+            <Word
+                g={gref(word)}
+                text={effect?.style === 'SLAP' ? 'SMACK!' : effect?.style === 'GUN' ? 'BANG!' : effect?.style === 'DOG' ? 'FWEEET!' : 'OOPS!'}
+                color={effect?.style === 'SLAP' ? '#ffd23a' : effect?.style === 'GUN' ? '#ff5a3d' : effect?.style === 'DOG' ? '#7fd1ff' : '#ff8b8f'}
+                size={1.3}
+            />
+            <Word g={gref(word2)} text="WOOF! WOOF!" color="#ffb347" size={0.85} />
+
+            <Burst g={gref(burst)} color={effect?.style === 'SLAP' ? '#ffd23a' : '#ff5a3d'} size={0.75} />
+
+            {/* gun */}
+            <Burst g={gref(flash)} color="#ffe14a" size={0.55} />
+            <Flat gref={gref(bullet)}>
+                <mesh position={[-0.7, 0, 0]}>
+                    <planeGeometry args={[1.5, 0.07]} />
+                    {basic('#fff3a0', { opacity: 0.8 })}
+                </mesh>
+                <mesh>
+                    <circleGeometry args={[0.1, 14]} />
+                    {basic('#ffd23a')}
+                </mesh>
+            </Flat>
+            <Flat gref={gref(smoke)}>
+                {[[0, 0, 0.3], [0.22, 0.1, 0.22], [-0.18, 0.14, 0.2]].map(([x, y, r], i) => (
+                    <mesh key={i} position={[x as number, y as number, 0]}>
+                        <circleGeometry args={[r as number, 16]} />
+                        {basic('#e9e4dc', { opacity: 0.85 })}
+                    </mesh>
+                ))}
+            </Flat>
+
+            {/* slap */}
+            <Flat gref={gref(swoosh)}>
+                <mesh rotation={[0, 0, -0.6]}>
+                    <ringGeometry args={[0.8, 1.05, 28, 1, 0, Math.PI * 0.9]} />
+                    {basic('#ffffff')}
+                </mesh>
+                <mesh rotation={[0, 0, -0.55]}>
+                    <ringGeometry args={[0.55, 0.65, 28, 1, 0.1, Math.PI * 0.7]} />
+                    {basic('#ffd23a')}
+                </mesh>
+            </Flat>
+            <Flat gref={gref(hand)}>
+                <mesh>
+                    <circleGeometry args={[0.2, 16]} />
+                    {basic('#e0343a', { opacity: 0.85 })}
+                </mesh>
+                {[-0.15, -0.05, 0.05, 0.15].map((x, i) => (
+                    <mesh key={i} position={[x, 0.27 + (i === 1 || i === 2 ? 0.05 : 0), 0]}>
+                        <planeGeometry args={[0.07, 0.24]} />
+                        {basic('#e0343a', { opacity: 0.85 })}
+                    </mesh>
+                ))}
+                <mesh position={[0.24, 0.05, 0]} rotation={[0, 0, -0.9]}>
+                    <planeGeometry args={[0.07, 0.2]} />
+                    {basic('#e0343a', { opacity: 0.85 })}
+                </mesh>
+            </Flat>
+
+            {/* stars over the victim's head */}
+            <Flat gref={gref(stars)}>
+                {[0, 1, 2, 3, 4].map(i => (
+                    <mesh key={i} geometry={starGeo}>
+                        {basic('#ffd23a')}
+                    </mesh>
+                ))}
+            </Flat>
+
+            {/* whistle + sound waves */}
+            <Flat gref={gref(whistle)}>
+                <mesh>
+                    <planeGeometry args={[0.34, 0.16]} />
+                    {basic('#c9d3dc')}
+                </mesh>
+                <mesh position={[0.2, 0, 0]}>
+                    <circleGeometry args={[0.12, 16]} />
+                    {basic('#8e9aa6')}
+                </mesh>
+                <mesh position={[0.2, 0, 0.01]}>
+                    <circleGeometry args={[0.04, 10]} />
+                    {basic('#1a0f08')}
+                </mesh>
+            </Flat>
+            <Flat gref={gref(waves)}>
+                {[0, 1, 2].map(i => (
+                    <mesh key={i} rotation={[0, 0, -Math.PI / 3]}>
+                        <ringGeometry args={[0.28, 0.35, 20, 1, 0, (Math.PI * 2) / 3]} />
+                        {basic('#7fd1ff')}
+                    </mesh>
+                ))}
+            </Flat>
+
+            {/* padlock on the victim's home */}
+            <Flat gref={gref(lock)}>
+                <mesh position={[0, 0.18, 0]}>
+                    <ringGeometry args={[0.2, 0.3, 20, 1, 0, Math.PI]} />
+                    {basic('#c9d3dc')}
+                </mesh>
+                <mesh position={[0, -0.05, 0.01]}>
+                    <planeGeometry args={[0.7, 0.55]} />
+                    {basic('#ffb800')}
+                </mesh>
+                <mesh position={[0, -0.05, 0.02]}>
+                    <circleGeometry args={[0.09, 12]} />
+                    {basic('#1a0f08')}
+                </mesh>
+                <Text font={GAME_FONT} position={[0, -0.55, 0.02]} fontSize={0.3} color="#ffffff" outlineColor="#1a0f08" outlineWidth={0.05} anchorX="center">
+                    LOCKED!
                 </Text>
-            </group>
+            </Flat>
 
-            {effect.style === 'PENALTY' && (
-                <Burst refGroup={burst} color="#d93a2f" spikes={12} size={0.6} />
-            )}
-
-            {effect.style === 'GUN' && (
-                <>
-                    <mesh ref={flash} visible={false}>
-                        <sphereGeometry args={[0.32, 12, 10]} />
-                        {mat('#fff3a0')}
-                    </mesh>
-                    <mesh ref={bullet} visible={false}>
-                        <sphereGeometry args={[0.12, 10, 8]} />
-                        {mat('#ffffff')}
-                    </mesh>
-                    <mesh ref={tracer} visible={false}>
-                        <cylinderGeometry args={[0.05, 0.05, 1, 6]} />
-                        {mat('#ffd23a')}
-                    </mesh>
-                    <Burst refGroup={burst} color="#ff6a3d" spikes={12} size={0.55} />
-                </>
-            )}
-
-            {effect.style === 'SLAP' && (
-                <>
-                    <Burst refGroup={burst} color="#ffe14a" spikes={10} size={0.5} />
-                    <mesh ref={shock} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-                        <ringGeometry args={[0.8, 1, 40]} />
-                        {mat('#ffffff')}
-                    </mesh>
-                    <group ref={stars} visible={false}>
-                        {Array.from({ length: 6 }, (_, i) => {
-                            const a = (i * Math.PI * 2) / 6;
-                            return (
-                                <mesh key={i} position={[Math.cos(a) * 0.55, (i % 2) * 0.18, Math.sin(a) * 0.55]}>
-                                    <octahedronGeometry args={[0.16, 0]} />
-                                    {mat(i % 2 ? '#ff4d6d' : '#ffe14a')}
-                                </mesh>
-                            );
-                        })}
-                    </group>
-                </>
-            )}
-
-            {effect.style === 'DOG' && (
-                <>
-                    <Burst refGroup={burst} color="#ffd23a" spikes={10} size={0.7} />
-                    <group ref={lock} visible={false}>
-                        <mesh position={[0, -0.1, 0]}>
-                            <boxGeometry args={[0.7, 0.55, 0.25]} />
-                            {mat('#ffc928')}
-                        </mesh>
-                        <mesh position={[0, 0.3, 0]}>
-                            <torusGeometry args={[0.22, 0.07, 8, 16, Math.PI]} />
-                            {mat('#b8c0c8')}
-                        </mesh>
-                        <mesh position={[0, -0.1, 0.14]}>
-                            <circleGeometry args={[0.09, 12]} />
-                            {mat('#4b1330')}
-                        </mesh>
-                    </group>
-                </>
-            )}
-        </group>
+            {/* penalty warning sign */}
+            <Flat gref={gref(warn)}>
+                <mesh geometry={warnGeo} scale={1.1}>{basic('#1a0f08')}</mesh>
+                <mesh geometry={warnGeo} position={[0, -0.02, 0.01]} scale={0.95}>{basic('#ffb800')}</mesh>
+                <Text font={GAME_FONT} position={[0, -0.08, 0.02]} fontSize={0.5} color="#1a0f08" anchorX="center" anchorY="middle">
+                    !
+                </Text>
+            </Flat>
+        </>
     );
 }
