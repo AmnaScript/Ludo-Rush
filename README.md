@@ -75,3 +75,8 @@ The game has two parts, so it is hosted in two places.
 2. **Site (Netlify, free):** Netlify -> Add new site -> Import from GitHub -> pick this repo (it reads `netlify.toml`). Before the first build open Site configuration -> Environment variables and add `VITE_SERVER_URL` = the Render address from step 1. Deploy.
 3. If you create the Netlify site first, go back to Render -> Environment and set `CLIENT_ORIGIN` to its address, then redeploy the server.
 4. Open the Netlify address, create a room, and send the invite link to your friends.
+
+### Alternative without a card: Vercel + Hugging Face Space
+
+- **Server:** create a new Space on huggingface.co (SDK: Docker, blank template), then push this repo's files to it (or link the GitHub repo). The `Dockerfile` runs the game server on port 7860. In the Space's Settings add a variable `CLIENT_ORIGIN` with your Vercel address (no trailing slash). The server address is `https://<user>-<space>.hf.space`.
+- **Site:** import the repo on Vercel with Build Command `npm install && npm run build -w @ludo-rush/client`, Output Directory `client/dist`, and the variable `VITE_SERVER_URL` set to the Space address.
